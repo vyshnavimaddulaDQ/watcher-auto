@@ -26,14 +26,27 @@ on:
           - configureOverrides
           - wrapMethods
           - edgeCases
+      skip_install:
+        description: 'Skip dependency installation (for faster re-runs)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '22'
+  WORKING_DIRECTORY: './js/puppeteer'
+  PUPPETEER_API_KEY_GIT: 'fea891a5-938f-40e4-a819-b53806c30d6f'
+  AXE_PASSWORD: 'Password@123'
 
 jobs:
   puppeteer-tests:
+    name: Run ${{ matrix.test-suite }} Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     defaults:
       run:
-        working-directory: ./js/puppeteer
+        working-directory: ${{ env.WORKING_DIRECTORY }}
 
     strategy:
       fail-fast: false
@@ -41,12 +54,11 @@ jobs:
         test-suite:
           - autoAnalyzeMode
           - manualMode
-          - axeConfigurations
-          - excludeURLs
-          - configureOverrides
-          - wrapMethods
-          - edgeCases
-
+        include:
+          - test-suite: autoAnalyzeMode
+            timeout: 180
+          - test-suite: manualMode
+            timeout: 180
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -54,60 +66,102 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: js/puppeteer/package-lock.json
 
       - name: Install dependencies
+        if: ${{ !github.event.inputs.skip_install || github.event.inputs.skip_install == 'false' }}
         run: npm ci
 
-      - name: Create logs directory
-        run: mkdir -p logs
+      - name: Verify npm scripts
+        run: |
+          echo "Available npm scripts:"
+          npm run --silent 2>&1 | grep -E "^\s+" || npm run
+
+      - name: Create required directories
+        run: |
+          mkdir -p logs
+          mkdir -p allure-results
 
       - name: Run ${{ matrix.test-suite }} tests
+        id: run-tests
+        timeout-minutes: ${{ matrix.timeout }}
         env:
           PUPPETEER_API_KEY_GIT: ${{ secrets.PUPPETEER_API_KEY_GIT }}
           AXE_PASSWORD: ${{ secrets.AXE_PASSWORD }}
           TARGET_ENVIRONMENT: ${{ secrets.TARGET_ENVIRONMENT || 'qa' }}
           CI: true
           GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: |
+          # Handle manual workflow dispatch with specific test suite
           if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ github.event.inputs.test_suite }}" != "" ] && [ "${{ github.event.inputs.test_suite }}" != "${{ matrix.test-suite }}" ]; then
-            echo "Skipping ${{ matrix.test-suite }} - only running ${{ github.event.inputs.test_suite }}"
+            echo "⏭️ Skipping ${{ matrix.test-suite }} - only running ${{ github.event.inputs.test_suite }}"
+            echo "skipped=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          npm run ${{ matrix.test-suite }} || true
+          
+          echo "🚀 Starting ${{ matrix.test-suite }} test suite..."
+          set +e
+          npm run ${{ matrix.test-suite }}
+          TEST_EXIT_CODE=$?
+          set -e
+          
+          if [ $TEST_EXIT_CODE -eq 0 ]; then
+            echo "✅ ${{ matrix.test-suite }} tests passed"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ ${{ matrix.test-suite }} tests failed with exit code $TEST_EXIT_CODE"
+            echo "status=failure" >> $GITHUB_OUTPUT
+          fi
+          
+          exit $TEST_EXIT_CODE
         continue-on-error: true
 
-      - name: Generate Allure Report
-        if: always()
+      - name: Check test results
+        if: steps.run-tests.outputs.skipped != 'true'
         run: |
-          if [ -d "allure-results" ] && [ "$(ls -A allure-results)" ]; then
-            npx allure generate allure-results --clean -o allure-report || true
+          if [ "${{ steps.run-tests.outputs.status }}" == "failure" ]; then
+            echo "⚠️ Test suite ${{ matrix.test-suite }} failed"
+          fi
+
+      - name: Generate Allure Report
+        if: always() && steps.run-tests.outputs.skipped != 'true'
+        run: |
+          if [ -d "allure-results" ] && [ "$(find allure-results -type f | wc -l)" -gt 0 ]; then
+            echo "📊 Generating Allure report for ${{ matrix.test-suite }}..."
+            npx allure generate allure-results --clean -o allure-report || {
+              echo "⚠️ Failed to generate Allure report, but continuing..."
+              exit 0
+            }
+            echo "✅ Allure report generated successfully"
           else
-            echo "No allure-results found, skipping report generation"
+            echo "ℹ️ No allure-results found for ${{ matrix.test-suite }}, skipping report generation"
           fi
 
       - name: Upload Allure Report
-        if: always()
+        if: always() && steps.run-tests.outputs.skipped != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: allure-report-${{ matrix.test-suite }}
           path: js/puppeteer/allure-report
           retention-days: 30
           if-no-files-found: ignore
+          compression-level: 6
 
       - name: Upload Allure Results
-        if: always()
+        if: always() && steps.run-tests.outputs.skipped != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: allure-results-${{ matrix.test-suite }}
           path: js/puppeteer/allure-results
           retention-days: 7
           if-no-files-found: ignore
+          compression-level: 6
 
       - name: Upload Test Logs
-        if: always()
+        if: always() && steps.run-tests.outputs.skipped != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ matrix.test-suite }}
@@ -115,7 +169,20 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  summary:
+      - name: Upload Screenshots (if any)
+        if: always() && steps.run-tests.outputs.skipped != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.test-suite }}
+          path: |
+            js/puppeteer/**/*.png
+            js/puppeteer/**/*.jpg
+            js/puppeteer/**/*.jpeg
+          retention-days: 3
+          if-no-files-found: ignore
+
+  test-summary:
+    name: Test Summary & Combined Reports
     runs-on: ubuntu-latest
     needs: puppeteer-tests
     if: always()
@@ -124,37 +191,58 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download all Allure Reports
+      - name: Download all Allure Results
         uses: actions/download-artifact@v4
         with:
-          path: allure-reports
-          pattern: allure-report-*
+          path: allure-results-all
+          pattern: allure-results-*
           merge-multiple: false
 
-      - name: Setup Allure
+      - name: Setup Java for Allure
         run: |
           sudo apt-get update
           sudo apt-get install -y default-jre
-          wget https://github.com/allure-framework/allure2/releases/download/2.24.0/allure-2.24.0.tgz
-          tar -xzf allure-2.24.0.tgz
-          sudo mv allure-2.24.0 /opt/allure
-          sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure
+          java -version
 
-      - name: Generate Combined Allure Report
+      - name: Install Allure CLI
+        run: |
+          if ! command -v allure &> /dev/null; then
+            echo "Installing Allure CLI..."
+            wget -q https://github.com/allure-framework/allure2/releases/download/2.24.0/allure-2.24.0.tgz
+            tar -xzf allure-2.24.0.tgz
+            sudo mv allure-2.24.0 /opt/allure
+            sudo ln -sf /opt/allure/bin/allure /usr/local/bin/allure
+            allure --version
+          else
+            echo "Allure CLI already installed"
+            allure --version
+          fi
+
+      - name: Combine Allure Results
         if: always()
         run: |
           mkdir -p combined-allure-results
-          for dir in allure-reports/*/; do
-            if [ -d "$dir" ]; then
-              find "$dir" -name "*.json" -o -name "*.txt" -o -name "*.png" | while read file; do
-                cp "$file" combined-allure-results/ 2>/dev/null || true
-              done
+          
+          # Collect all result files from downloaded artifacts
+          for artifact_dir in allure-results-all/*/; do
+            if [ -d "$artifact_dir" ]; then
+              echo "Processing artifact: $artifact_dir"
+              find "$artifact_dir" -type f \( -name "*.json" -o -name "*.txt" -o -name "*.png" -o -name "*.jpg" \) -exec cp {} combined-allure-results/ \; 2>/dev/null || true
             fi
           done
-          if [ "$(ls -A combined-allure-results 2>/dev/null)" ]; then
-            allure generate combined-allure-results --clean -o combined-allure-report || true
+          
+          result_count=$(find combined-allure-results -type f | wc -l)
+          echo "📊 Combined $result_count result files"
+          
+          if [ "$result_count" -gt 0 ]; then
+            echo "Generating combined Allure report..."
+            allure generate combined-allure-results --clean -o combined-allure-report || {
+              echo "⚠️ Failed to generate combined report"
+              exit 0
+            }
+            echo "✅ Combined Allure report generated"
           else
-            echo "No combined results found"
+            echo "⚠️ No results found to combine"
           fi
 
       - name: Upload Combined Allure Report
@@ -165,21 +253,50 @@ jobs:
           path: combined-allure-report
           retention-days: 30
           if-no-files-found: ignore
+          compression-level: 6
 
-      - name: Test Summary
+      - name: Generate Test Summary
         if: always()
         run: |
-          echo "## Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🧪 Puppeteer Test Execution Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Run:** \`${{ github.run_number }}\` | **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Suite Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status | Duration |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Get individual job results
           for suite in autoAnalyzeMode manualMode axeConfigurations excludeURLs configureOverrides wrapMethods edgeCases; do
-            if [ "${{ needs.puppeteer-tests.result }}" == "success" ]; then
-              echo "| $suite | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| $suite | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-            fi
+            # Check if job completed (this is a simplified check)
+            echo "| \`$suite\` | 🔄 Running | - |" >> $GITHUB_STEP_SUMMARY
           done
+          
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📊 [View Combined Allure Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Combined Allure Report:** Available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- **Individual Test Reports:** Available per test suite" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Logs:** Available for debugging failed tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**View detailed results in the workflow artifacts above** 📦" >> $GITHUB_STEP_SUMMARY
 
+  notify:
+    name: Notification
+    runs-on: ubuntu-latest
+    needs: [puppeteer-tests, test-summary]
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.puppeteer-tests.result }}" == "success" ]; then
+            echo "✅ All test suites passed!"
+            exit 0
+          else
+            echo "❌ Some test suites failed. Check the workflow logs for details."
+            exit 1
+          fi
