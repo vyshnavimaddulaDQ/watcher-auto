@@ -35,8 +35,6 @@ on:
 env:
   NODE_VERSION: '22'
   WORKING_DIRECTORY: './js/puppeteer'
-  PUPPETEER_API_KEY_GIT: 'fea891a5-938f-40e4-a819-b53806c30d6f'
-  AXE_PASSWORD: 'Password@123'
 
 jobs:
   puppeteer-tests:
@@ -67,8 +65,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: js/puppeteer/package-lock.json
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('js/puppeteer/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install dependencies
         if: ${{ !github.event.inputs.skip_install || github.event.inputs.skip_install == 'false' }}
@@ -88,8 +92,8 @@ jobs:
         id: run-tests
         timeout-minutes: ${{ matrix.timeout }}
         env:
-          PUPPETEER_API_KEY_GIT: ${{ secrets.PUPPETEER_API_KEY_GIT }}
-          AXE_PASSWORD: ${{ secrets.AXE_PASSWORD }}
+          PUPPETEER_API_KEY_GIT: ${{ secrets.PUPPETEER_API_KEY_GIT || 'fea891a5-938f-40e4-a819-b53806c30d6f' }}
+          AXE_PASSWORD: ${{ secrets.AXE_PASSWORD || 'Password@123' }}
           TARGET_ENVIRONMENT: ${{ secrets.TARGET_ENVIRONMENT || 'qa' }}
           CI: true
           GITHUB_RUN_ID: ${{ github.run_id }}
