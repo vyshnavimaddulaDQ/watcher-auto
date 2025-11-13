@@ -48,8 +48,10 @@ class AxeWatcherAPI {
    * Get branches for a project
    */
   async getBranches(projectId, token, branch) {
-    // Wait 20 seconds before making the API call
+    // Wait 20 seconds before making the API call to allow API to sync
+    logger.info('🕐 Starting 20 second wait before fetching branches...')
     await this.sleep(20000)
+    logger.info('🕐 Wait completed, proceeding with API call...')
     
     let url = `${API_URL}/v2/${projectId}/branches?`
     const params = ['x-pagination-page=1', 'x-pagination-per-page=5']
@@ -116,8 +118,11 @@ class AxeWatcherAPI {
    * Sleep/delay utility
    */
   sleep(ms) {
+    const seconds = ms / 1000
+    logger.info(`⏳ Waiting ${seconds} seconds before API call...`)
     return new Promise(resolve => {
       setTimeout(() => {
+        logger.info(`✅ Wait completed (${seconds} seconds)`)
         resolve()
       }, ms)
     })

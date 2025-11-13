@@ -54,9 +54,9 @@ jobs:
           - manualMode
         include:
           - test-suite: autoAnalyzeMode
-            timeout: 180
+            timeout-minutes: 3
           - test-suite: manualMode
-            timeout: 180
+            timeout-minutes: 3
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -97,7 +97,7 @@ jobs:
 
       - name: Run ${{ matrix.test-suite }} tests
         id: run-tests
-        timeout-minutes: ${{ matrix.timeout }}
+        timeout-minutes: ${{ matrix.timeout-minutes }}
         env:
           PUPPETEER_API_KEY_GIT: ${{ secrets.PUPPETEER_API_KEY_GIT || 'fea891a5-938f-40e4-a819-b53806c30d6f' }}
           AXE_PASSWORD: ${{ secrets.AXE_PASSWORD || 'Password@123' }}
