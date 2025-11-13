@@ -76,7 +76,14 @@ jobs:
 
       - name: Install dependencies
         if: ${{ !github.event.inputs.skip_install || github.event.inputs.skip_install == 'false' }}
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            echo "✅ package-lock.json found, running npm ci"
+            npm ci
+          else
+            echo "⚠️ package-lock.json not found, running npm install"
+            npm install
+          fi
 
       - name: Verify npm scripts
         run: |
