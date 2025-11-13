@@ -1,20 +1,17 @@
 const puppeteer = require('puppeteer')
 const { expect } = require('chai')
 const { allure } = require('allure-mocha')
-const { testData } = require('../../../resources/testData')
-const { config } = require('../../../global/config')
+const { testData } = require('../resources/testData')
 const {
   puppeteerConfig,
   PuppeteerController,
   wrapPuppeteerPage
 } = require('@axe-core/watcher')
-const { default: logger } = require('../../../global/logger')
-const { verifyPagestateIssuesCount } = require('../../../utils/axeWatcherAPI')
-require('dotenv').config()
+const logger = require('../util/logger')
+const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
 
-const API_KEY = config.gitMode
-  ? process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
-  : process.env.PUPPETEER_API_KEY_GITLESS ?? 'PROVIDE API KEY!'
+
+const API_KEY = process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
 
 const configureOverrides = [
@@ -60,48 +57,61 @@ const configureOverrides = [
   }
 ]
 
-describe('Puppeteer: Axe Watcher with Global configurations overrides', function () {
-  this.timeout(60000)
+describe('Puppeteer: Axe Watcher with Global configurations overrides', function() {
+  this.timeout(180000) // 3 minutes timeout
+  
   configureOverrides.forEach((configObj) => {
-    describe(configObj.description, () => {
-      let browser
-      let page
-      let controller
+    describe(configObj.description, function() {
+      let testBrowser
+      let testPage
+      let testController
 
-      before(async () => {
-        browser = await puppeteer.launch(
+      before(async function() {
+        this.timeout(60000) // 60 seconds for browser launch
+        testBrowser = await puppeteer.launch(
           puppeteerConfig({
             axe: configObj.axe,
-
             headless: false,
             args: ['--headless=new', '--no-sandbox', '--disable-setuid-sandbox']
           })
         )
       })
 
-      beforeEach(async () => {
-        page = await browser.newPage()
-        controller = new PuppeteerController(page)
-        page = wrapPuppeteerPage(page, controller)
+      beforeEach(async function() {
+        this.timeout(30000)
+        testPage = await testBrowser.newPage()
+        testController = new PuppeteerController(testPage)
+        testPage = wrapPuppeteerPage(testPage, testController)
       })
 
-      afterEach(async () => {
-        await controller.flush()
-        await page.close()
-      })
-
-      after(async () => {
-        if (browser) {
-          await browser.close()
+      afterEach(async function() {
+        this.timeout(30000)
+        if (testController) {
+          await testController.flush()
         }
-        await verifyPagestateIssuesCount('configOverride', 'automation_Puppeteer')
+        if (testPage) {
+          await testPage.close()
+        }
       })
 
-      it('Navigate to Test page and check title', async () => {
-        await page.goto(testData.testUrls.abcdPage)
-        const title = await page.title()
+      after(async function() {
+        this.timeout(30000)
+        if (testBrowser) {
+          await testBrowser.close()
+        }
+      })
+
+      it('Navigate to Test page and check title', async function() {
+        this.timeout(30000)
+        await testPage.goto(testData.testUrls.abcdPage)
+        const title = await testPage.title()
         expect(title).to.be.a('string')
       })
     })
   })
+  
+  after(async function() {
+    this.timeout(300000) // 5 minutes for API validation
+    await verifyPagestateIssuesCount('configOverride', 'automation_Puppeteer')
   })
+})

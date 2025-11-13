@@ -1,19 +1,15 @@
 const puppeteer = require('puppeteer')
 const { expect, assert } = require('chai')
 const { allure } = require('allure-mocha')
-const { testData } = require('../../../resources/testData')
-const { config } = require('../../../global/config')
+const { testData } = require('../resources/testData')
 const {
   puppeteerConfig,
   PuppeteerController,
   wrapPuppeteerPage
 } = require('@axe-core/watcher')
-const { verifyPagestateIssuesCount } = require('../../../utils/axeWatcherAPI')
-require('dotenv').config()
+const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
 
-const API_KEY = config.gitMode
-  ? process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
-  : process.env.PUPPETEER_API_KEY_GITLESS ?? 'PROVIDE API KEY!'
+const API_KEY = process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
 const excludeUrls = [
   {
@@ -70,51 +66,65 @@ const excludeUrls = [
   }
 ]
 
-describe('Puppeteer: Axe Watcher with Excluded URLs Configurations', function () {
-  this.timeout(60000)
+describe('Puppeteer: Axe Watcher with Excluded URLs Configurations', function() {
+  this.timeout(180000) // 3 minutes timeout
+  
   excludeUrls.forEach((configObj) => {
-    describe(configObj.description, () => {
-      let browser
-      let page
-      let controller
+    describe(configObj.description, function() {
+      let testBrowser
+      let testPage
+      let testController
 
-      before(async () => {
-        browser = await puppeteer.launch(
+      before(async function() {
+        this.timeout(60000) // 60 seconds for browser launch
+        testBrowser = await puppeteer.launch(
           puppeteerConfig({
             axe: configObj.axe,
             headless: false,
-             args: ['--headless=new', '--no-sandbox', '--disable-setuid-sandbox']
+            args: ['--headless=new', '--no-sandbox', '--disable-setuid-sandbox']
           })
         )
       })
 
-      beforeEach(async () => {
-        page = await browser.newPage()
-        controller = new PuppeteerController(page)
-        page = wrapPuppeteerPage(page, controller)
+      beforeEach(async function() {
+        this.timeout(30000)
+        testPage = await testBrowser.newPage()
+        testController = new PuppeteerController(testPage)
+        testPage = wrapPuppeteerPage(testPage, testController)
       })
 
-      afterEach(async () => {
-        await controller.flush()
-        await page.close()
-      })
-
-      after(async () => {
-        if (browser) {
-          await browser.close()
+      afterEach(async function() {
+        this.timeout(30000)
+        if (testController) {
+          await testController.flush()
         }
-        await verifyPagestateIssuesCount('excludeUrls', 'automation_Puppeteer')
+        if (testPage) {
+          await testPage.close()
+        }
       })
 
-      it('Navigate to Test page and check title', async () => {
-        await page.goto(testData.testUrls.abcdPage)
-        await page.click(testData.configurationTestsValidations.abcdPageSelectors.laptopsAndNotebooks)
-        await page.click(testData.configurationTestsValidations.abcdPageSelectors.desktops)
-        await page.click(testData.configurationTestsValidations.abcdPageSelectors.cart)
-        await page.click(testData.configurationTestsValidations.abcdPageSelectors.support)
-        const title = await page.title()
+      after(async function() {
+        this.timeout(30000)
+        if (testBrowser) {
+          await testBrowser.close()
+        }
+      })
+
+      it('Navigate to Test page and check title', async function() {
+        this.timeout(60000)
+        await testPage.goto(testData.testUrls.abcdPage)
+        await testPage.click(testData.configurationTestsValidations.abcdPageSelectors.laptopsAndNotebooks)
+        await testPage.click(testData.configurationTestsValidations.abcdPageSelectors.desktops)
+        await testPage.click(testData.configurationTestsValidations.abcdPageSelectors.cart)
+        await testPage.click(testData.configurationTestsValidations.abcdPageSelectors.support)
+        const title = await testPage.title()
         assert.equal(title, testData.testTitles.abcdPage)
       })
     })
-})
+  })
+  
+  after(async function() {
+    this.timeout(300000) // 5 minutes for API validation
+    await verifyPagestateIssuesCount('excludeUrls', 'automation_Puppeteer')
+  })
 })

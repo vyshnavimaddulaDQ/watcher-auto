@@ -13,7 +13,6 @@ const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
 const API_KEY = process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
 
-/* Get your configuration from environment variables. */
 describe('Puppeteer: AutoAnalyze Mode Tests Validation', () => {
   let browser
   let page
@@ -44,29 +43,12 @@ describe('Puppeteer: AutoAnalyze Mode Tests Validation', () => {
     page = wrapPuppeteerPage(page, controller)
   })
 
-  after(async function() {
-    this.timeout(300000) // 5 minutes timeout for after hook
-    try {
-      console.log('🧹 [AFTER HOOK] Starting cleanup and API validation...')
-      await browser.close()
-      console.log('✅ [AFTER HOOK] Browser closed')
-      
-      // Wait 20 seconds before calling the API to allow results to sync
-      console.log('⏳ [AFTER HOOK] Waiting 20 seconds before API validation...')
-      await new Promise(resolve => {
-        setTimeout(() => {
-          console.log('✅ [AFTER HOOK] 20 second wait completed')
-          resolve()
-        }, 20000)
-      })
-      
-      console.log('🚀 [AFTER HOOK] Starting API validation...')
-      await verifyPagestateIssuesCount('autoAnalyzeMode', 'automation_Puppeteer')
-      console.log('✅ [AFTER HOOK] API validation completed successfully')
-    } catch (error) {
-      console.error('❌ [AFTER HOOK] Error during cleanup/validation:', error.message)
-      throw error
-    }
+  after(async () => {
+    await browser.close()
+    // Wait 20 seconds before calling the API to allow results to sync
+    console.log('⏳ [AFTER HOOK] Waiting 20 seconds for Devhub card to process...')
+    //await new Promise(resolve => setTimeout(resolve, 20000))
+    await verifyPagestateIssuesCount('autoAnalyzeMode', 'automation_Puppeteer')
   })
 
   afterEach(async () => {

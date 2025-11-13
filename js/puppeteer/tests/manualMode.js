@@ -1,19 +1,15 @@
 const puppeteer = require('puppeteer')
 const { assert } = require('chai')
 const { allure } = require('allure-mocha')
-const { testData } = require('../../../resources/testData')
-const { config } = require('../../../global/config')
+const { testData } = require('../resources/testData')
 const {
   puppeteerConfig,
   PuppeteerController,
   wrapPuppeteerPage
 } = require('@axe-core/watcher')
-const { verifyPagestateIssuesCount } = require('../../../utils/axeWatcherAPI')
-require('dotenv').config()
+const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
 
-const API_KEY = config.gitMode
-  ? process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
-  : process.env.PUPPETEER_API_KEY_GITLESS ?? 'PROVIDE API KEY!'
+const API_KEY = process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
 describe('Puppeteer: Manual Mode Tests Validation', function () {
   this.timeout(60000)

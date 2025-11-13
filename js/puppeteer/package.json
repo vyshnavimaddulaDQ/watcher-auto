@@ -4,13 +4,12 @@
   "private": true,
   "scripts": {
     "autoAnalyzeMode": "mocha --reporter allure-mocha tests/autoAnalyzeMode.js --timeout 180s",
-    "manualMode": "mocha --require ts-node/register --reporter allure-mocha tests/manualMode.js --timeout 180s",
-    "axeConfigurations": "mocha --require ts-node/register --reporter allure-mocha tests/axeConfigurations.js --timeout 180s",
-    "excludeURLs": "mocha --require ts-node/register --reporter allure-mocha tests/excludeURLs.js --timeout 180s",
-    "configureOverrides": "mocha --require ts-node/register --reporter allure-mocha tests/configureOverrides.js --timeout 180s",
-    "wrapMethods": "mocha --require ts-node/register --reporter allure-mocha tests/wrapMethods.js --timeout 180s",
-    "edgeCases": "mocha --require ts-node/register --reporter allure-mocha tests/edgeCases.js --timeout 180s",
-    "test": "(yarn run autoAnalyzeMode || true) && (yarn run manualMode || true) && (yarn run axeConfigurations || true) && (yarn run excludeURLs || true) && (yarn run configureOverrides || true) && (yarn run wrapMethods || true) && (yarn run edgeCases || true)"
+    "manualMode": "mocha --reporter allure-mocha tests/manualMode.js --timeout 180s",
+    "axeConfigurations": "mocha --reporter allure-mocha tests/axeConfigurations.js --timeout 180s",
+    "excludeURLs": "mocha --reporter allure-mocha tests/excludeURLs.js --timeout 180s",
+    "configureOverrides": "mocha --reporter allure-mocha tests/configureOverrides.js --timeout 180s",
+    "wrapMethods": "mocha --reporter allure-mocha tests/wrapMethods.js --timeout 180s",
+    "edgeCases": "mocha --reporter allure-mocha tests/edgeCases.js --timeout 180s"
   },
   "devDependencies": {
     "@axe-core/watcher": "^3.22.0-next.fc61317d",

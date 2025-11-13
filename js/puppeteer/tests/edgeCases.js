@@ -1,6 +1,5 @@
 const { assert } = require('chai')
-const { testData } = require('../../../resources/testData')
-const { config } = require('../../../global/config')
+const { testData } = require('../resources/testData')
 const { allure } = require('allure-mocha')
 const puppeteer = require('puppeteer')
 const {
@@ -8,8 +7,8 @@ const {
   PuppeteerController,
   wrapPuppeteerPage
 } = require('@axe-core/watcher')
-const { verifyPagestateIssuesCount } = require('../../../utils/axeWatcherAPI')
-require('dotenv').config()
+const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
+
 
 // Edge Case Test Configurations
 const edgeCasesConfigs = [
