@@ -1,0 +1,28 @@
+{
+  "name": "watcher-automation-playwright-basic",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "autoAnalyzeMode": "mocha --reporter allure-mocha tests/autoAnalyzeMode.test.ts",
+    "axeConfigurations": "mocha --require ts-node/register --reporter allure-mocha tests/axeConfigurations.test.ts",
+    "configureOverrides": "mocha --require ts-node/register --reporter allure-mocha tests/configureOverrides.test.ts",
+    "edgeCases": "mocha --require ts-node/register --reporter allure-mocha tests/edgeCases.test.ts",
+    "excludeURLs": "mocha --require ts-node/register --reporter allure-mocha tests/excludeURLs.test.ts",
+    "manualMode": "mocha --require ts-node/register --reporter allure-mocha tests/manualMode.test.ts",
+    "wrapMethods": "mocha --require ts-node/register --reporter allure-mocha tests/wrapMethods.test.ts",
+    "allure:generate": "allure generate allure-results --clean -o allure-report",
+    "allure:open": "allure open allure-report",
+    "test": "(yarn run autoAnalyzeMode || true) && (yarn run axeConfigurations || true) && (yarn run configureOverrides || true) && (yarn run edgeCases || true) && (yarn run excludeURLs || true) && (yarn run manualMode || true) && (yarn run wrapMethods || true)"
+
+
+  },
+  "devDependencies": {
+    "@axe-core/watcher": "3.23.0-next.86c61d3a",
+    "allure-mocha": "^3.3.3",
+    "mocha": "^11.7.2",
+    "mochawesome": "^7.1.3",
+    "playwright": "latest",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  }
+}

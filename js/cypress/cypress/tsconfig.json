@@ -1,0 +1,9 @@
+{
+  "extends": "../../../tsconfig.json",
+   "compilerOptions": {
+    "target": "ES6",
+    "lib": ["ES6", "DOM"],
+    "types": ["cypress", "node"]
+  },
+  "include": ["**/*.ts", "e2e/edgecases.cy.js", "e2e/configOverrides.cy.js", "e2e/excludeURLs.cy.js"]
+}

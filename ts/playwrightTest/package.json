@@ -1,0 +1,24 @@
+{
+  "name": "watcher-automation-playwright-test-basic",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "autoAnalyzeMode": "playwright test tests/autoAnalyzeMode.test.ts --reporter=line,allure-playwright",
+    "axeConfigurations": "playwright test tests/axeConfigurations.test.ts --reporter=line,allure-playwright",
+    "configureOverrides": "playwright test tests/configureOverrides.test.ts --reporter=line,allure-playwright",
+    "edgeCases": "playwright test tests/edgeCases.test.ts --reporter=line,allure-playwright",
+    "excludeURLs": "playwright test tests/excludeURLs.test.ts --reporter=line,allure-playwright",
+    "manualMode": "playwright test tests/manualMode.test.ts --reporter=line,allure-playwright",
+    "wrapMethods": "playwright test tests/wrapMethods.test.ts --reporter=line,allure-playwright",
+   
+    "allure:generate": "allure generate allure-results --clean -o allure-report",
+    "allure:open": "allure open allure-report",
+    "test": "(yarn run autoAnalyzeMode || true) && (yarn run configureOverrides || true) && (yarn run manualMode || true) && (yarn run axeConfigurations || true) && (yarn run excludeURLs || true) && (yarn run wrapMethods || true) && (yarn run edgeCases || true)"
+  },
+  "devDependencies": {
+    "@axe-core/watcher": "3.23.0-next.86c61d3a",
+    "@playwright/test": "latest",
+    "allure-commandline": "^2.34.1",
+    "allure-playwright": "^2.15.1"
+  }
+}
