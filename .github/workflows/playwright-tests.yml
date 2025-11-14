@@ -1,15 +1,15 @@
-name: Puppeteer Tests
+name: Playwright Tests
 
 on:
   workflow_dispatch:
 
 env:
   NODE_VERSION: '22'
-  WORKING_DIRECTORY: './js/puppeteer'
+  WORKING_DIRECTORY: './ts/playwright'
 
 jobs:
-  puppeteer-tests:
-    name: Run All Puppeteer Tests
+  playwright-tests:
+    name: Run All Playwright Tests
     runs-on: ubuntu-latest
     timeout-minutes: 60
     
@@ -30,7 +30,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('js/puppeteer/package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('ts/playwright/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
@@ -53,7 +53,7 @@ jobs:
 
       - name: Set environment variables
         run: |
-          echo "PUPPETEER_API_KEY_GIT=${{ secrets.PUPPETEER_API_KEY_GIT || 'fea891a5-938f-40e4-a819-b53806c30d6f' }}" >> $GITHUB_ENV
+          echo "PLAYWRIGHT_API_KEY_GIT=${{ secrets.PLAYWRIGHT_API_KEY_GIT || 'fea891a5-938f-40e4-a819-b53806c30d6f' }}" >> $GITHUB_ENV
           echo "AXE_PASSWORD=${{ secrets.AXE_PASSWORD || 'Password@123' }}" >> $GITHUB_ENV
           echo "TARGET_ENVIRONMENT=${{ secrets.TARGET_ENVIRONMENT || 'qa' }}" >> $GITHUB_ENV
           echo "CI=true" >> $GITHUB_ENV
@@ -111,16 +111,16 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: allure-results
+          name: allure-results-playwright
           path: |
-            js/puppeteer/allure-results/
-            js/puppeteer/logs/
+            ts/playwright/allure-results/
+            ts/playwright/logs/
           retention-days: 30
 
       - name: Generate Test Summary
         if: always()
         run: |
-          echo "## 🧪 Puppeteer Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🧪 Playwright Test Execution Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
@@ -138,7 +138,7 @@ jobs:
   publish-report:
     name: Publish Allure Report
     runs-on: ubuntu-latest
-    needs: puppeteer-tests
+    needs: playwright-tests
     if: always() && github.event_name == 'workflow_dispatch'
     
     steps:
@@ -148,7 +148,7 @@ jobs:
       - name: Download Allure Results
         uses: actions/download-artifact@v4
         with:
-          name: allure-results
+          name: allure-results-playwright
           path: allure-results
 
       - name: Load test report history
@@ -169,9 +169,9 @@ jobs:
         run: |
           mkdir -p combined-allure-results
           # Copy all allure-results
-          if [ -d "allure-results/js/puppeteer/allure-results" ] && [ -n "$(ls -A allure-results/js/puppeteer/allure-results 2>/dev/null)" ]; then
-            echo "Merging results from puppeteer into combined report"
-            cp -r allure-results/js/puppeteer/allure-results/* combined-allure-results/ || true
+          if [ -d "allure-results/ts/playwright/allure-results" ] && [ -n "$(ls -A allure-results/ts/playwright/allure-results 2>/dev/null)" ]; then
+            echo "Merging results from playwright into combined report"
+            cp -r allure-results/ts/playwright/allure-results/* combined-allure-results/ || true
           fi
           echo "Total files in combined report: $(ls -1 combined-allure-results 2>/dev/null | wc -l)"
         continue-on-error: true
@@ -209,7 +209,7 @@ jobs:
   notify:
     name: Slack Notification
     runs-on: ubuntu-latest
-    needs: [puppeteer-tests, publish-report]
+    needs: [playwright-tests, publish-report]
     if: always() && github.event_name == 'workflow_dispatch'
     
     steps:
@@ -229,15 +229,16 @@ jobs:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
             {
-              "text": "${{ needs.puppeteer-tests.result == 'success' && '✅ *Puppeteer Tests Passed*' || '❌ *Puppeteer Tests Failed*' }}",
+              "text": "${{ needs.playwright-tests.result == 'success' && '✅ *Playwright Tests Passed*' || '❌ *Playwright Tests Failed*' }}",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "${{ needs.puppeteer-tests.result == 'success' && '✅ *Puppeteer Tests Passed*' || '❌ *Puppeteer Tests Failed*' }}\n• *Branch:* `${{ github.ref_name }}`\n• *Status:* `${{ needs.puppeteer-tests.result }}`\n• *Commit:* <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ steps.slack-data.outputs.short_sha }}>\n📊 <${{ steps.slack-data.outputs.report_url }}|View Allure Report>"
+                    "text": "${{ needs.playwright-tests.result == 'success' && '✅ *Playwright Tests Passed*' || '❌ *Playwright Tests Failed*' }}\n• *Branch:* `${{ github.ref_name }}`\n• *Status:* `${{ needs.playwright-tests.result }}`\n• *Commit:* <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ steps.slack-data.outputs.short_sha }}>\n📊 <${{ steps.slack-data.outputs.report_url }}|View Allure Report>"
                   }
                 }
               ]
             }
         continue-on-error: true
+

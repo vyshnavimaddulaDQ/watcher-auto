@@ -1,0 +1,8 @@
+{
+  "require": ["ts-node/register", "tsconfig-paths/register"],
+  "timeout": 20000,
+  "recursive": true,
+  "extension": ["ts", "js"],
+  "reporter": "allure-mocha",
+  "reporterOptions": ["resultsDir=allure-results"]
+}

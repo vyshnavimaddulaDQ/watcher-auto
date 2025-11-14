@@ -1,0 +1,25 @@
+{
+  "name": "watcher-automation-cypress-basic",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "autoAnalyzeMode": "cypress run --env allure=true --browser=chrome --config-file cypress.autoAnalyze.config.js",
+    "manualMode": "cypress run --env allure=true --browser=chrome --config-file cypress.manualmode.config.js",
+    "configureOverrides": "cypress run --env allure=true --browser=chrome --config-file cypress.overrides.config.js",
+    "excludeURLs": "cypress run --env allure=true --browser=chrome --config-file cypress.excludeURLs.config.js",
+    "edgeCases": "cypress run --env allure=true --browser=chrome --config-file cypress.edgecases.config.js",
+    "wrapMethods": "cypress run --env allure=true --browser=chrome --config-file cypress.wrapMethods.config.js",
+    "axeConfigurations": "cypress run --env allure=true --browser=chrome --config-file cypress.runconfigs.config.js",
+    "allure:report": "allure generate allure-results --clean -o allure-report && allure open allure-report"
+  },
+  "devDependencies": {
+    "@axe-core/watcher": "3.23.0-next.86c61d3a",
+    "@shelex/cypress-allure-plugin": "^2.41.2",
+    "allure-commandline": "^2.34.1",
+    "cypress": "^15.0.0",
+    "cypress-multi-reporters": "^1.6.4",
+    "mocha-junit-reporter": "^2.2.1",
+    "mochawesome": "^7.1.3",
+    "path": "^0.12.7"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "reporterEnabled": "mochawesome, @shelex/cypress-allure-plugin",
+  "mochawesomeReporterOptions": {
+    "reportDir": "cypress/reports/mochawesome",
+    "overwrite": false,
+    "html": false,
+    "json": true
+  },
+  "@shelex/cypress-allure-plugin": {
+    "outputDir": "allure-results"
+  }
+}
