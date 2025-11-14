@@ -46,6 +46,7 @@ describe('Puppeteer: Manual Mode Tests Validation', function () {
     if (browser) {
       await browser.close()
     }
+    await this.sleep(20000)
     await verifyPagestateIssuesCount('manualMode', 'automation_Puppeteer')
   })
 

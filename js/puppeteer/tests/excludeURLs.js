@@ -125,6 +125,7 @@ describe('Puppeteer: Axe Watcher with Excluded URLs Configurations', function() 
   
   after(async function() {
     this.timeout(300000) // 5 minutes for API validation
+    await this.sleep(20000)
     await verifyPagestateIssuesCount('excludeUrls', 'automation_Puppeteer')
   })
 })

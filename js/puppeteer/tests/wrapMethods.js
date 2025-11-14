@@ -57,6 +57,7 @@ describe('Puppeteer: Wrap Methods Tests Validation', function() {
     if (browser) {
       await browser.close()
     }
+    await this.sleep(20000)
     await verifyPagestateIssuesCount('wrapMethods', 'automation_Puppeteer')
   })
 

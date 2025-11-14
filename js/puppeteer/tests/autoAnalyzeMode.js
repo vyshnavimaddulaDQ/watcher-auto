@@ -47,7 +47,7 @@ describe('Puppeteer: AutoAnalyze Mode Tests Validation', () => {
     await browser.close()
     // Wait 20 seconds before calling the API to allow results to sync
     console.log('⏳ [AFTER HOOK] Waiting 20 seconds for Devhub card to process...')
-    //await new Promise(resolve => setTimeout(resolve, 20000))
+    await this.sleep(20000)
     await verifyPagestateIssuesCount('autoAnalyzeMode', 'automation_Puppeteer')
   })
 
