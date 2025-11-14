@@ -6,6 +6,11 @@ on:
 env:
   NODE_VERSION: '22'
 
+permissions:
+  contents: read
+  actions: write
+  pull-requests: read
+
 jobs:
   trigger-workflows:
     name: Trigger All Watcher Test Workflows
