@@ -3,7 +3,6 @@ import { testData as data } from '@resources/testData'
 import { testData  } from '@resources/testData'
 import { assert } from 'chai'
 import { allure } from 'allure-playwright'
-import { config } from '@global/config'
 import 'mocha'
 import playwright from 'playwright'
 import {
@@ -20,7 +19,7 @@ let page: playwright.Page
 let browserContext: playwright.BrowserContext
 let controller: PlaywrightController
 
-const API_KEY: string = config.gitMode ? process.env.PLAYWRIGHT_API_KEY_GIT ?? 'PROVIDE API KEY!' : process.env.PLAYWRIGHT_API_KEY_GITLESS ?? 'PROVIDE API KEY!'
+const API_KEY: string = process.env.PLAYWRIGHT_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
 before(async () => {
   browserContext = await playwright.chromium.launchPersistentContext(

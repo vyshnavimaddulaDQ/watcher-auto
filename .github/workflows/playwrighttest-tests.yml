@@ -1,0 +1,254 @@
+name: PlaywrightTest Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'ts/playwrightTest/**'
+      - '.github/workflows/playwrighttest-tests.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'ts/playwrightTest/**'
+      - '.github/workflows/playwrighttest-tests.yml'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
+  WORKING_DIRECTORY: './ts/playwrightTest'
+
+jobs:
+  playwrighttest-tests:
+    name: Run All PlaywrightTest Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('ts/playwrightTest/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Setup Java
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-jre
+
+      - name: Create directories
+        run: |
+          mkdir -p logs allure-results
+
+      - name: Set environment variables
+        run: |
+          echo "PW_TEST_API_KEY_GIT=${{ secrets.PW_TEST_API_KEY_GIT || 'fea891a5-938f-40e4-a819-b53806c30d6f' }}" >> $GITHUB_ENV
+          echo "AXE_PASSWORD=${{ secrets.AXE_PASSWORD || 'Password@123' }}" >> $GITHUB_ENV
+          echo "TARGET_ENVIRONMENT=${{ secrets.TARGET_ENVIRONMENT || 'qa' }}" >> $GITHUB_ENV
+          echo "CI=true" >> $GITHUB_ENV
+
+      - name: Run autoAnalyzeMode tests
+        id: test-autoAnalyzeMode
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          npm run autoAnalyzeMode && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Run manualMode tests
+        id: test-manualMode
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          npm run manualMode && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Run axeConfigurations tests
+        id: test-axeConfigurations
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          npm run axeConfigurations && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Run excludeURLs tests
+        id: test-excludeURLs
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          npm run excludeURLs && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Run configureOverrides tests
+        id: test-configureOverrides
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          npm run configureOverrides && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Run wrapMethods tests
+        id: test-wrapMethods
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          npm run wrapMethods && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Run edgeCases tests
+        id: test-edgeCases
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          npm run edgeCases && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Upload Allure Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-playwrighttest
+          path: |
+            ts/playwrightTest/allure-results/
+            ts/playwrightTest/logs/
+          retention-days: 30
+
+      - name: Generate Test Summary
+        if: always()
+        run: |
+          echo "## 🧪 PlaywrightTest Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| autoAnalyzeMode | ${{ steps.test-autoAnalyzeMode.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| manualMode | ${{ steps.test-manualMode.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| axeConfigurations | ${{ steps.test-axeConfigurations.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| excludeURLs | ${{ steps.test-excludeURLs.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| configureOverrides | ${{ steps.test-configureOverrides.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| wrapMethods | ${{ steps.test-wrapMethods.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| edgeCases | ${{ steps.test-edgeCases.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          echo "📊 [View Allure Report](https://${{ github.repository_owner }}.github.io/$REPO_NAME/allure-history/)" >> $GITHUB_STEP_SUMMARY
+
+  publish-report:
+    name: Publish Allure Report
+    runs-on: ubuntu-latest
+    needs: playwrighttest-tests
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Allure Results
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results-playwrighttest
+          path: allure-results
+
+      - name: Load test report history
+        uses: actions/checkout@v4
+        if: always()
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Setup Allure
+        run: |
+          wget -qO- https://github.com/allure-framework/allure2/releases/download/2.34.1/allure-2.34.1.tgz | tar -xz
+          sudo mv allure-2.34.1 /opt/allure
+          sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure
+
+      - name: Merge Allure Results
+        run: |
+          mkdir -p combined-allure-results
+          # Copy all allure-results
+          if [ -d "allure-results/ts/playwrightTest/allure-results" ] && [ -n "$(ls -A allure-results/ts/playwrightTest/allure-results 2>/dev/null)" ]; then
+            echo "Merging results from playwrighttest into combined report"
+            cp -r allure-results/ts/playwrightTest/allure-results/* combined-allure-results/ || true
+          fi
+          echo "Total files in combined report: $(ls -1 combined-allure-results 2>/dev/null | wc -l)"
+        continue-on-error: true
+
+      - name: Build Combined Allure Report
+        run: |
+          # Create allure-history directory if it doesn't exist
+          mkdir -p allure-history
+          
+          # Copy existing history if it exists
+          if [ -d "gh-pages/allure-history" ]; then
+            cp -r gh-pages/allure-history/* allure-history/ || true
+          fi
+          
+          # Generate new Allure report
+          allure generate combined-allure-results -o allure-report --clean
+          
+          # Copy new report to history
+          timestamp=$(date +%Y%m%d_%H%M%S)
+          mkdir -p "allure-history/$timestamp"
+          cp -r allure-report/* "allure-history/$timestamp/" || true
+          
+          # Create index.html that redirects to latest report
+          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url='$timestamp'/index.html"></head></html>' > allure-history/index.html
+        continue-on-error: true
+
+      - name: Publish test report
+        uses: peaceiris/actions-gh-pages@v4
+        if: always()
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: allure-history
+
+  notify:
+    name: Slack Notification
+    runs-on: ubuntu-latest
+    needs: [playwrighttest-tests, publish-report]
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    
+    steps:
+      - name: Prepare Slack Data
+        id: slack-data
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
+          echo "report_url=https://${{ github.repository_owner }}.github.io/$REPO_NAME/allure-history/" >> $GITHUB_OUTPUT
+
+      - name: Notify on Slack
+        uses: slackapi/slack-github-action@v1.26
+        if: always()
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "${{ needs.playwrighttest-tests.result == 'success' && '✅ *PlaywrightTest Tests Passed*' || '❌ *PlaywrightTest Tests Failed*' }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ needs.playwrighttest-tests.result == 'success' && '✅ *PlaywrightTest Tests Passed*' || '❌ *PlaywrightTest Tests Failed*' }}\n• *Branch:* `${{ github.ref_name }}`\n• *Status:* `${{ needs.playwrighttest-tests.result }}`\n• *Commit:* <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ steps.slack-data.outputs.short_sha }}>\n📊 <${{ steps.slack-data.outputs.report_url }}|View Allure Report>"
+                  }
+                }
+              ]
+            }
+        continue-on-error: true
+

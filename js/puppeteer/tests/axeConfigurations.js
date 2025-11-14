@@ -148,7 +148,13 @@ describe('Puppeteer: Axe Watcher with Multiple Axe Configurations', function() {
           puppeteerConfig({
             axe: configObj.axe,
             headless: false,
-            args: ['--headless=new', '--no-sandbox', '--disable-setuid-sandbox']
+            args: [
+              '--headless=new',
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--ignore-certificate-errors',
+              '--ignore-ssl-errors'
+            ]
           })
         )
       })

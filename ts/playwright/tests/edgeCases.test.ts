@@ -1,6 +1,5 @@
 import { assert } from 'chai';
 import { testData as data } from '@resources/testData';
-import { config } from '@global/config';
 import { allure } from 'allure-playwright';
 import { PlaywrightController, playwrightConfig, wrapPlaywrightPage } from '@axe-core/watcher';
 import playwright from 'playwright';

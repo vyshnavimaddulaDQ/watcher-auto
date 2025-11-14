@@ -1,17 +1,10 @@
 import { testData as data } from '@resources/testData'
 import { playwrightTest } from '@axe-core/watcher'
 import 'dotenv/config'
-import { config } from '@global/config'
 import { allure } from 'allure-playwright'
-import { verifyPagestateIssuesCount } from '../../../utils/axeWatcherAPI'
+import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI'
 
-const API_KEY: string = config.gitMode
-  ? process.env.PW_TEST_API_KEY_GIT ?? 'API_KEY'
-  : process.env.PW_TEST_API_KEY_GITLESS ?? 'API_KEY'
-
-if (!API_KEY || API_KEY === 'PROVIDE API KEY!') {
-  throw new Error('A valid API key must be provided in the environment variables.')
-}
+const API_KEY: string = process.env.PW_TEST_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
 const { test, expect } = playwrightTest({
   axe: {
@@ -20,7 +13,7 @@ const { test, expect } = playwrightTest({
   },
   headless: false,
   channel: 'chromium',
-  args: ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage']
+  args: ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--ignore-certificate-errors', '--ignore-ssl-errors']
 })
 
 export { test, expect }
@@ -77,10 +70,12 @@ function matchesExpectedError(errorMessage: string, expectedError: string | stri
 
 edgeCases.forEach(({ description, axe, expectedError, args }) => {
   try {
+    const defaultArgs = ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--ignore-certificate-errors', '--ignore-ssl-errors']
+    const finalArgs = args ? [...defaultArgs, ...args] : defaultArgs
     const { test, expect } = playwrightTest({
       axe,
       headless: false,
-      args: args ?? []
+      args: finalArgs
     })
 
     test.describe('Axe Watcher - Negative Test Scenarios', () => {

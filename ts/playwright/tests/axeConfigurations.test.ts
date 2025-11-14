@@ -2,9 +2,7 @@ import { testData as data } from '@resources/testData';
 import { testData } from '@resources/testData';
 import { assert } from 'chai';
 import { allure } from 'allure-playwright';
-import { config } from '@global/config';
 import 'mocha';
-import type { RunOnly } from 'axe-core';
 import playwright from 'playwright';
 import {
   playwrightConfig,
@@ -18,9 +16,7 @@ let page: playwright.Page;
 let browserContext: playwright.BrowserContext;
 let controller: PlaywrightController;
 
-const API_KEY: string = config.gitMode
-  ? process.env.PLAYWRIGHT_API_KEY_GIT ?? 'PROVIDE API KEY!'
-  : process.env.PLAYWRIGHT_API_KEY_GITLESS ?? 'PROVIDE API KEY!';
+const API_KEY: string = process.env.PLAYWRIGHT_API_KEY_GIT ?? 'PROVIDE API KEY!';
 // ✅ Global unique build ID (reusable)
 const GITHUB_RUN_ID = process.env.GITHUB_RUN_ID;
 const globalBuildID = GITHUB_RUN_ID || `RUN-${Math.floor(Math.random() * 100000)}`;

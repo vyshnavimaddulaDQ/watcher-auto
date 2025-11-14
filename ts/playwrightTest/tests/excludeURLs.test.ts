@@ -1,15 +1,10 @@
 import { testData as data } from '@resources/testData'
 import { playwrightTest } from '@axe-core/watcher'
 import 'dotenv/config'
-import { config } from '@global/config'
 import { allure } from 'allure-playwright'
-import { verifyPagestateIssuesCount } from '../../../utils/axeWatcherAPI'
+import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI'
 
-
-const API_KEY: string = config.gitMode
-  ? process.env.PW_TEST_API_KEY_GIT ?? 'PROVIDE API KEY!'
-  : process.env.PW_TEST_API_KEY_GITLESS ?? 'PROVIDE API KEY!'
-
+const API_KEY: string = process.env.PW_TEST_API_KEY_GIT ?? 'PROVIDE API KEY!'
 const GITHUB_RUN_ID = process.env.GITHUB_RUN_ID
 const globalBuildID = GITHUB_RUN_ID || `RUN-${Math.floor(Math.random() * 100000)}`
 
@@ -20,7 +15,7 @@ const { test, expect } = playwrightTest({
   },
   headless: true, // Explicitly set to true for new headless mode
   channel: 'chromium', // Ensure channel is set to 'chromium'
-  args: ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage']
+  args: ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--ignore-certificate-errors', '--ignore-ssl-errors']
 })
 
 export { test, expect }
@@ -105,7 +100,7 @@ for (const configObj of excludeURLs) {
     axe: configObj.axe,
     channel: 'chromium', // Ensure channel is set to 'chromium'
     headless: false, // Ensure headless is explicitly set to true
-    args: ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage'] // Use new headless mode
+    args: ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--ignore-certificate-errors', '--ignore-ssl-errors'] // Use new headless mode
   });
 
   test.describe(configObj.description, () => {

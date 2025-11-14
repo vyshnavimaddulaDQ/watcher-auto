@@ -1,13 +1,10 @@
 import { testData as data } from '@resources/testData'
 import { playwrightTest } from '@axe-core/watcher'
 import 'dotenv/config'
-import { config } from '@global/config'
 import { allure } from 'allure-playwright'
-import { verifyPagestateIssuesCount } from '../../../utils/axeWatcherAPI'
+import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI'
 
-const API_KEY: string = config.gitMode
-  ? process.env.PW_TEST_API_KEY_GIT ?? 'PROVIDE API KEY!'
-  : process.env.PW_TEST_API_KEY_GITLESS ?? 'PROVIDE API KEY!'
+const API_KEY: string = process.env.PW_TEST_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
 const baseURL = data.testUrls.actions
 const { test, expect } = playwrightTest({
@@ -17,7 +14,7 @@ const { test, expect } = playwrightTest({
   },
   headless: false,
   channel: 'chromium',
-  args: ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage']
+  args: ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--ignore-certificate-errors', '--ignore-ssl-errors']
 })
 
 export { test, expect }
