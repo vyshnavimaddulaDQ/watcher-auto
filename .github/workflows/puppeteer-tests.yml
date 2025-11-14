@@ -12,29 +12,11 @@ on:
       - 'js/puppeteer/**'
       - '.github/workflows/puppeteer-tests.yml'
   workflow_dispatch:
-    inputs:
-      test_suite:
-        description: 'Test suite to run (leave empty for all)'
-        required: false
-        type: choice
-        options:
-          - ''
-          - autoAnalyzeMode
-          - manualMode
-          - axeConfigurations
-          - excludeURLs
-          - configureOverrides
-          - wrapMethods
-          - edgeCases
-      skip_install:
-        description: 'Skip dependency installation (for faster re-runs)'
-        required: false
-        type: boolean
-        default: false
 
 env:
   NODE_VERSION: '22'
   WORKING_DIRECTORY: './js/puppeteer'
+  TEST_DELAY_SECONDS: '10'  # Delay in seconds between test scripts
 
 jobs:
   puppeteer-tests:
@@ -64,40 +46,25 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Install dependencies
-        if: ${{ !github.event.inputs.skip_install || github.event.inputs.skip_install == 'false' }}
         run: |
           if [ -f "package-lock.json" ]; then
-            echo "✅ package-lock.json found, running npm ci"
             npm ci
           else
-            echo "⚠️ package-lock.json not found, running npm install"
             npm install
           fi
 
-      - name: Setup Java for Allure
+      - name: Setup Java and Allure
         run: |
           sudo apt-get update
           sudo apt-get install -y default-jre
-          java -version
+          wget -q https://github.com/allure-framework/allure2/releases/download/2.24.0/allure-2.24.0.tgz
+          tar -xzf allure-2.24.0.tgz
+          sudo mv allure-2.24.0 /opt/allure
+          sudo ln -sf /opt/allure/bin/allure /usr/local/bin/allure
 
-      - name: Install Allure CLI
+      - name: Create directories
         run: |
-          if ! command -v allure &> /dev/null; then
-            echo "Installing Allure CLI..."
-            wget -q https://github.com/allure-framework/allure2/releases/download/2.24.0/allure-2.24.0.tgz
-            tar -xzf allure-2.24.0.tgz
-            sudo mv allure-2.24.0 /opt/allure
-            sudo ln -sf /opt/allure/bin/allure /usr/local/bin/allure
-            allure --version
-          else
-            echo "Allure CLI already installed"
-            allure --version
-          fi
-
-      - name: Create required directories
-        run: |
-          mkdir -p logs
-          mkdir -p allure-results
+          mkdir -p logs allure-results
 
       - name: Set environment variables
         run: |
@@ -105,166 +72,103 @@ jobs:
           echo "AXE_PASSWORD=${{ secrets.AXE_PASSWORD || 'Password@123' }}" >> $GITHUB_ENV
           echo "TARGET_ENVIRONMENT=${{ secrets.TARGET_ENVIRONMENT || 'qa' }}" >> $GITHUB_ENV
           echo "CI=true" >> $GITHUB_ENV
-          echo "GITHUB_RUN_ID=${{ github.run_id }}" >> $GITHUB_ENV
-          echo "GITHUB_RUN_NUMBER=${{ github.run_number }}" >> $GITHUB_ENV
 
       - name: Run autoAnalyzeMode tests
         id: test-autoAnalyzeMode
         timeout-minutes: 15
         continue-on-error: true
         run: |
-          echo "🚀 Starting autoAnalyzeMode test suite..."
-          set +e
-          npm run autoAnalyzeMode
-          TEST_EXIT_CODE=$?
-          set -e
-          
-          if [ $TEST_EXIT_CODE -eq 0 ]; then
-            echo "✅ autoAnalyzeMode tests passed"
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            echo "❌ autoAnalyzeMode tests failed with exit code $TEST_EXIT_CODE"
-            echo "status=failure" >> $GITHUB_OUTPUT
-          fi
-          echo "exit_code=$TEST_EXIT_CODE" >> $GITHUB_OUTPUT
+          npm run autoAnalyzeMode && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Wait before next test
+        if: always()
+        run: |
+          echo "⏳ Waiting ${{ env.TEST_DELAY_SECONDS }} seconds before next test suite..."
+          sleep ${{ env.TEST_DELAY_SECONDS }}
 
       - name: Run manualMode tests
         id: test-manualMode
         timeout-minutes: 15
         continue-on-error: true
         run: |
-          echo "🚀 Starting manualMode test suite..."
-          set +e
-          npm run manualMode
-          TEST_EXIT_CODE=$?
-          set -e
-          
-          if [ $TEST_EXIT_CODE -eq 0 ]; then
-            echo "✅ manualMode tests passed"
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            echo "❌ manualMode tests failed with exit code $TEST_EXIT_CODE"
-            echo "status=failure" >> $GITHUB_OUTPUT
-          fi
-          echo "exit_code=$TEST_EXIT_CODE" >> $GITHUB_OUTPUT
+          npm run manualMode && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Wait before next test
+        if: always()
+        run: |
+          echo "⏳ Waiting ${{ env.TEST_DELAY_SECONDS }} seconds before next test suite..."
+          sleep ${{ env.TEST_DELAY_SECONDS }}
 
       - name: Run axeConfigurations tests
         id: test-axeConfigurations
         timeout-minutes: 15
         continue-on-error: true
         run: |
-          echo "🚀 Starting axeConfigurations test suite..."
-          set +e
-          npm run axeConfigurations
-          TEST_EXIT_CODE=$?
-          set -e
-          
-          if [ $TEST_EXIT_CODE -eq 0 ]; then
-            echo "✅ axeConfigurations tests passed"
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            echo "❌ axeConfigurations tests failed with exit code $TEST_EXIT_CODE"
-            echo "status=failure" >> $GITHUB_OUTPUT
-          fi
-          echo "exit_code=$TEST_EXIT_CODE" >> $GITHUB_OUTPUT
+          npm run axeConfigurations && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Wait before next test
+        if: always()
+        run: |
+          echo "⏳ Waiting ${{ env.TEST_DELAY_SECONDS }} seconds before next test suite..."
+          sleep ${{ env.TEST_DELAY_SECONDS }}
 
       - name: Run excludeURLs tests
         id: test-excludeURLs
         timeout-minutes: 15
         continue-on-error: true
         run: |
-          echo "🚀 Starting excludeURLs test suite..."
-          set +e
-          npm run excludeURLs
-          TEST_EXIT_CODE=$?
-          set -e
-          
-          if [ $TEST_EXIT_CODE -eq 0 ]; then
-            echo "✅ excludeURLs tests passed"
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            echo "❌ excludeURLs tests failed with exit code $TEST_EXIT_CODE"
-            echo "status=failure" >> $GITHUB_OUTPUT
-          fi
-          echo "exit_code=$TEST_EXIT_CODE" >> $GITHUB_OUTPUT
+          npm run excludeURLs && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Wait before next test
+        if: always()
+        run: |
+          echo "⏳ Waiting ${{ env.TEST_DELAY_SECONDS }} seconds before next test suite..."
+          sleep ${{ env.TEST_DELAY_SECONDS }}
 
       - name: Run configureOverrides tests
         id: test-configureOverrides
         timeout-minutes: 15
         continue-on-error: true
         run: |
-          echo "🚀 Starting configureOverrides test suite..."
-          set +e
-          npm run configureOverrides
-          TEST_EXIT_CODE=$?
-          set -e
-          
-          if [ $TEST_EXIT_CODE -eq 0 ]; then
-            echo "✅ configureOverrides tests passed"
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            echo "❌ configureOverrides tests failed with exit code $TEST_EXIT_CODE"
-            echo "status=failure" >> $GITHUB_OUTPUT
-          fi
-          echo "exit_code=$TEST_EXIT_CODE" >> $GITHUB_OUTPUT
+          npm run configureOverrides && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Wait before next test
+        if: always()
+        run: |
+          echo "⏳ Waiting ${{ env.TEST_DELAY_SECONDS }} seconds before next test suite..."
+          sleep ${{ env.TEST_DELAY_SECONDS }}
 
       - name: Run wrapMethods tests
         id: test-wrapMethods
         timeout-minutes: 15
         continue-on-error: true
         run: |
-          echo "🚀 Starting wrapMethods test suite..."
-          set +e
-          npm run wrapMethods
-          TEST_EXIT_CODE=$?
-          set -e
-          
-          if [ $TEST_EXIT_CODE -eq 0 ]; then
-            echo "✅ wrapMethods tests passed"
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            echo "❌ wrapMethods tests failed with exit code $TEST_EXIT_CODE"
-            echo "status=failure" >> $GITHUB_OUTPUT
-          fi
-          echo "exit_code=$TEST_EXIT_CODE" >> $GITHUB_OUTPUT
+          npm run wrapMethods && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Wait before next test
+        if: always()
+        run: |
+          echo "⏳ Waiting ${{ env.TEST_DELAY_SECONDS }} seconds before next test suite..."
+          sleep ${{ env.TEST_DELAY_SECONDS }}
 
       - name: Run edgeCases tests
         id: test-edgeCases
         timeout-minutes: 15
         continue-on-error: true
         run: |
-          echo "🚀 Starting edgeCases test suite..."
-          set +e
-          npm run edgeCases
-          TEST_EXIT_CODE=$?
-          set -e
-          
-          if [ $TEST_EXIT_CODE -eq 0 ]; then
-            echo "✅ edgeCases tests passed"
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            echo "❌ edgeCases tests failed with exit code $TEST_EXIT_CODE"
-            echo "status=failure" >> $GITHUB_OUTPUT
-          fi
-          echo "exit_code=$TEST_EXIT_CODE" >> $GITHUB_OUTPUT
+          npm run edgeCases && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
 
-      - name: Generate Combined Allure HTML Report
+      - name: Generate Allure Report
         if: always()
         run: |
           if [ -d "allure-results" ] && [ "$(find allure-results -type f | wc -l)" -gt 0 ]; then
-            echo "📊 Generating combined Allure HTML report from all test suites..."
-            allure generate allure-results --clean -o allure-report || {
-              echo "⚠️ Failed to generate Allure report"
-              exit 1
-            }
-            echo "✅ Combined Allure HTML report generated successfully"
-            echo "Report location: allure-report/index.html"
+            allure generate allure-results --clean -o allure-report
           else
-            echo "⚠️ No allure-results found, skipping report generation"
+            echo "No allure-results found"
             exit 1
           fi
 
-      - name: Upload Combined Allure HTML Report
+      - name: Upload Allure Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -272,194 +176,31 @@ jobs:
           path: js/puppeteer/allure-report
           retention-days: 30
           if-no-files-found: error
-          compression-level: 6
 
-      - name: Upload Allure Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: allure-results
-          path: js/puppeteer/allure-results
-          retention-days: 7
-          if-no-files-found: ignore
-          compression-level: 6
-
-      - name: Upload Test Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs
-          path: js/puppeteer/logs
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Generate Test Summary and Results File
+      - name: Generate Test Summary
         if: always()
         run: |
           echo "## 🧪 Puppeteer Test Execution Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Workflow Run:** \`${{ github.run_number }}\` | **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Test Suite Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
-          
-          # Create results file for Slack notification
-          mkdir -p /tmp/test-results
-          RESULTS_FILE="/tmp/test-results/results.json"
-          echo "{" > $RESULTS_FILE
-          echo "  \"autoAnalyzeMode\": \"${{ steps.test-autoAnalyzeMode.outputs.status }}\"," >> $RESULTS_FILE
-          echo "  \"manualMode\": \"${{ steps.test-manualMode.outputs.status }}\"," >> $RESULTS_FILE
-          echo "  \"axeConfigurations\": \"${{ steps.test-axeConfigurations.outputs.status }}\"," >> $RESULTS_FILE
-          echo "  \"excludeURLs\": \"${{ steps.test-excludeURLs.outputs.status }}\"," >> $RESULTS_FILE
-          echo "  \"configureOverrides\": \"${{ steps.test-configureOverrides.outputs.status }}\"," >> $RESULTS_FILE
-          echo "  \"wrapMethods\": \"${{ steps.test-wrapMethods.outputs.status }}\"," >> $RESULTS_FILE
-          echo "  \"edgeCases\": \"${{ steps.test-edgeCases.outputs.status }}\"" >> $RESULTS_FILE
-          echo "}" >> $RESULTS_FILE
-          
-          # Check each test suite result
-          if [ "${{ steps.test-autoAnalyzeMode.outputs.status }}" == "success" ]; then
-            echo "| \`autoAnalyzeMode\` | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| \`autoAnalyzeMode\` | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "${{ steps.test-manualMode.outputs.status }}" == "success" ]; then
-            echo "| \`manualMode\` | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| \`manualMode\` | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "${{ steps.test-axeConfigurations.outputs.status }}" == "success" ]; then
-            echo "| \`axeConfigurations\` | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| \`axeConfigurations\` | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "${{ steps.test-excludeURLs.outputs.status }}" == "success" ]; then
-            echo "| \`excludeURLs\` | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| \`excludeURLs\` | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "${{ steps.test-configureOverrides.outputs.status }}" == "success" ]; then
-            echo "| \`configureOverrides\` | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| \`configureOverrides\` | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "${{ steps.test-wrapMethods.outputs.status }}" == "success" ]; then
-            echo "| \`wrapMethods\` | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| \`wrapMethods\` | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "${{ steps.test-edgeCases.outputs.status }}" == "success" ]; then
-            echo "| \`edgeCases\` | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| \`edgeCases\` | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
+          echo "| autoAnalyzeMode | ${{ steps.test-autoAnalyzeMode.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| manualMode | ${{ steps.test-manualMode.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| axeConfigurations | ${{ steps.test-axeConfigurations.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| excludeURLs | ${{ steps.test-excludeURLs.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| configureOverrides | ${{ steps.test-configureOverrides.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| wrapMethods | ${{ steps.test-wrapMethods.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| edgeCases | ${{ steps.test-edgeCases.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Combined Allure HTML Report:** Available in workflow artifacts (combined-allure-report)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Allure Results:** Raw test results for re-generation" >> $GITHUB_STEP_SUMMARY
-          echo "- **Test Logs:** Available for debugging failed tests" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**View the combined HTML report in the workflow artifacts above** 📦" >> $GITHUB_STEP_SUMMARY
-
-      - name: Upload Test Results for Slack
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: /tmp/test-results/results.json
-          retention-days: 1
-          if-no-files-found: ignore
+          echo "📊 [View Allure Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
 
   notify:
-    name: Notification
+    name: Slack Notification
     runs-on: ubuntu-latest
     needs: puppeteer-tests
     if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     
     steps:
-      - name: Download Test Results
-        uses: actions/download-artifact@v4
-        with:
-          name: test-results
-          path: /tmp/test-results
-          if-no-files-found: ignore
-
-      - name: Get Short Commit SHA
-        id: commit
-        run: |
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-
-      - name: Prepare Slack Message
-        id: prepare-slack
-        run: |
-          # Determine overall status
-          if [ "${{ needs.puppeteer-tests.result }}" == "success" ]; then
-            OVERALL_STATUS="✅ Success"
-            OVERALL_EMOJI="✅"
-          else
-            OVERALL_STATUS="❌ Failure"
-            OVERALL_EMOJI="❌"
-          fi
-          
-          # Convert status to emoji
-          get_emoji() {
-            if [ "$1" == "success" ]; then
-              echo "✅"
-            else
-              echo "❌"
-            fi
-          }
-          
-          # Read individual test results if available (using grep/sed instead of jq for compatibility)
-          if [ -f "/tmp/test-results/results.json" ]; then
-            AUTO_STATUS=$(grep -o '"autoAnalyzeMode": "[^"]*"' /tmp/test-results/results.json | cut -d'"' -f4 || echo "unknown")
-            MANUAL_STATUS=$(grep -o '"manualMode": "[^"]*"' /tmp/test-results/results.json | cut -d'"' -f4 || echo "unknown")
-            AXE_STATUS=$(grep -o '"axeConfigurations": "[^"]*"' /tmp/test-results/results.json | cut -d'"' -f4 || echo "unknown")
-            EXCLUDE_STATUS=$(grep -o '"excludeURLs": "[^"]*"' /tmp/test-results/results.json | cut -d'"' -f4 || echo "unknown")
-            CONFIG_STATUS=$(grep -o '"configureOverrides": "[^"]*"' /tmp/test-results/results.json | cut -d'"' -f4 || echo "unknown")
-            WRAP_STATUS=$(grep -o '"wrapMethods": "[^"]*"' /tmp/test-results/results.json | cut -d'"' -f4 || echo "unknown")
-            EDGE_STATUS=$(grep -o '"edgeCases": "[^"]*"' /tmp/test-results/results.json | cut -d'"' -f4 || echo "unknown")
-          else
-            # Fallback to overall status
-            AUTO_STATUS="${{ needs.puppeteer-tests.result }}"
-            MANUAL_STATUS="${{ needs.puppeteer-tests.result }}"
-            AXE_STATUS="${{ needs.puppeteer-tests.result }}"
-            EXCLUDE_STATUS="${{ needs.puppeteer-tests.result }}"
-            CONFIG_STATUS="${{ needs.puppeteer-tests.result }}"
-            WRAP_STATUS="${{ needs.puppeteer-tests.result }}"
-            EDGE_STATUS="${{ needs.puppeteer-tests.result }}"
-          fi
-          
-          AUTO_EMOJI=$(get_emoji "$AUTO_STATUS")
-          MANUAL_EMOJI=$(get_emoji "$MANUAL_STATUS")
-          AXE_EMOJI=$(get_emoji "$AXE_STATUS")
-          EXCLUDE_EMOJI=$(get_emoji "$EXCLUDE_STATUS")
-          CONFIG_EMOJI=$(get_emoji "$CONFIG_STATUS")
-          WRAP_EMOJI=$(get_emoji "$WRAP_STATUS")
-          EDGE_EMOJI=$(get_emoji "$EDGE_STATUS")
-          
-          echo "overall_status=$OVERALL_STATUS" >> $GITHUB_OUTPUT
-          echo "overall_emoji=$OVERALL_EMOJI" >> $GITHUB_OUTPUT
-          echo "auto_emoji=$AUTO_EMOJI" >> $GITHUB_OUTPUT
-          echo "manual_emoji=$MANUAL_EMOJI" >> $GITHUB_OUTPUT
-          echo "axe_emoji=$AXE_EMOJI" >> $GITHUB_OUTPUT
-          echo "exclude_emoji=$EXCLUDE_EMOJI" >> $GITHUB_OUTPUT
-          echo "config_emoji=$CONFIG_EMOJI" >> $GITHUB_OUTPUT
-          echo "wrap_emoji=$WRAP_EMOJI" >> $GITHUB_OUTPUT
-          echo "edge_emoji=$EDGE_EMOJI" >> $GITHUB_OUTPUT
-
       - name: Send Slack Notification
         if: always()
         uses: slackapi/slack-github-action@v1
@@ -467,13 +208,13 @@ jobs:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
             {
-              "text": "🧪 Puppeteer Test Execution Complete",
+              "text": "🧪 Puppeteer Tests - ${{ needs.puppeteer-tests.result == 'success' && '✅ Success' || '❌ Failure' }}",
               "blocks": [
                 {
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "🧪 Puppeteer Test Execution Complete"
+                    "text": "🧪 Puppeteer Test Execution"
                   }
                 },
                 {
@@ -481,7 +222,7 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Repository:*\n${{ github.repository }}"
+                      "text": "*Status:*\n${{ needs.puppeteer-tests.result == 'success' && '✅ Success' || '❌ Failure' }}"
                     },
                     {
                       "type": "mrkdwn",
@@ -489,11 +230,11 @@ jobs:
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Workflow Run:*\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|#${{ github.run_number }}>"
+                      "text": "*Run:*\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|#${{ github.run_number }}>"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Commit:*\n<https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ steps.commit.outputs.short_sha }}>"
+                      "text": "*Commit:*\n<https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
                     }
                   ]
                 },
@@ -501,37 +242,9 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Overall Status:* ${{ steps.prepare-slack.outputs.overall_status }}"
+                    "text": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow Run>"
                   }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Test Suites:*\n• autoAnalyzeMode: ${{ steps.prepare-slack.outputs.auto_emoji }}\n• manualMode: ${{ steps.prepare-slack.outputs.manual_emoji }}\n• axeConfigurations: ${{ steps.prepare-slack.outputs.axe_emoji }}\n• excludeURLs: ${{ steps.prepare-slack.outputs.exclude_emoji }}\n• configureOverrides: ${{ steps.prepare-slack.outputs.config_emoji }}\n• wrapMethods: ${{ steps.prepare-slack.outputs.wrap_emoji }}\n• edgeCases: ${{ steps.prepare-slack.outputs.edge_emoji }}"
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*📊 Artifacts:*\n• <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow Run>\n• Combined Allure HTML Report available in artifacts"
-                  }
-                },
-                {
-                  "type": "divider"
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "Triggered by: ${{ github.actor }} | <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>"
-                    }
-                  ]
                 }
               ]
             }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true

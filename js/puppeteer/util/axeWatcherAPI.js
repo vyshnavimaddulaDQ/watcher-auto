@@ -50,7 +50,7 @@ class AxeWatcherAPI {
   async getBranches(projectId, token, branch) {
     // Wait 20 seconds before making the API call to allow API to sync
     logger.info('🕐 Starting 20 second wait before fetching branches...')
-    await this.sleep(20000)
+    await this.sleep(30000)
     logger.info('🕐 Wait completed, proceeding with API call...')
     
     let url = `${API_URL}/v2/${projectId}/branches?`
