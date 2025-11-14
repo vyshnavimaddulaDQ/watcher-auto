@@ -121,6 +121,6 @@ for (const configObj of excludeURLs) {
  
 }
 test.afterAll(async () => {
-  await verifyPagestateIssuesCount('excludeUrls')
+  await verifyPagestateIssuesCount('excludeUrls', 'automation_Playwright Test')
   
 })

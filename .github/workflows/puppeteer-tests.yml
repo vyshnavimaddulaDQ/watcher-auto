@@ -1,16 +1,6 @@
 name: Puppeteer Tests
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'js/puppeteer/**'
-      - '.github/workflows/puppeteer-tests.yml'
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - 'js/puppeteer/**'
-      - '.github/workflows/puppeteer-tests.yml'
   workflow_dispatch:
 
 env:
@@ -149,7 +139,7 @@ jobs:
     name: Publish Allure Report
     runs-on: ubuntu-latest
     needs: puppeteer-tests
-    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: always() && github.event_name == 'workflow_dispatch'
     
     steps:
       - name: Checkout code
@@ -220,7 +210,7 @@ jobs:
     name: Slack Notification
     runs-on: ubuntu-latest
     needs: [puppeteer-tests, publish-report]
-    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: always() && github.event_name == 'workflow_dispatch'
     
     steps:
       - name: Prepare Slack Data

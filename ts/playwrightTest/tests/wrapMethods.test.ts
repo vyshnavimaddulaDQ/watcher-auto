@@ -56,7 +56,7 @@ test.describe('PlaywrightTest: Wrap Methods Tests Validation', () => {
     await page.dispatchEvent('#focus-input', 'click')
   })
   test.afterAll(async () => {
-    await verifyPagestateIssuesCount('wrapMethods')
+    await verifyPagestateIssuesCount('wrapMethods', 'automation_Playwright Test')
     
   })
 })

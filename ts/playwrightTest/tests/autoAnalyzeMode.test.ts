@@ -86,7 +86,7 @@ test.describe('PlaywrightTest: AutoAnalyze Mode Tests Validation', () => {
   })
 
   test.afterAll(async () => {
-    await verifyPagestateIssuesCount('autoAnalyzeMode')
+    await verifyPagestateIssuesCount('autoAnalyzeMode', 'automation_Playwright Test')
     
   })
 })

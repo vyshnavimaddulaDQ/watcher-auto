@@ -166,5 +166,5 @@ for (const configObj of axeConfigurations) {
 
 // Run afterAll once after all test suites are executed
 test.afterAll(async () => {
-  await verifyPagestateIssuesCount('axeConfigs')
+  await verifyPagestateIssuesCount('axeConfigs', 'automation_Playwright Test')
 });

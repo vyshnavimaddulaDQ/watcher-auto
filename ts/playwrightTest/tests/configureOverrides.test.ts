@@ -91,6 +91,6 @@ for (const configObj of configureOverrides) {
  
 } 
 test.afterAll(async () => {
-  await verifyPagestateIssuesCount('configOverride')
+    await verifyPagestateIssuesCount('configOverride', 'automation_Playwright Test')
   
 })

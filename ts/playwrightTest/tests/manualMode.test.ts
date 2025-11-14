@@ -92,7 +92,7 @@ test.describe('PlaywrightTest: Manual Mode Tests Validation', () => {
     await page.axeWatcher.stop()
   })
   test.afterAll(async () => {
-    await verifyPagestateIssuesCount('manualMode')
+    await verifyPagestateIssuesCount('manualMode', 'automation_Playwright Test')
     
   })
 })
