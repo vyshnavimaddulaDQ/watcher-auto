@@ -29,7 +29,13 @@ describe('Puppeteer: Wrap Methods Tests Validation', function() {
           serverURL: testData.environment.domain
         },
         headless: false,
-        args: ['--headless=new', '--no-sandbox', '--disable-setuid-sandbox']
+        args: [
+          '--headless=new',
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--ignore-certificate-errors',
+          '--ignore-ssl-errors'
+        ]
       })
     )
   })
@@ -45,7 +51,7 @@ describe('Puppeteer: Wrap Methods Tests Validation', function() {
   afterEach(async function() {
     this.timeout(30000)
     if (controller) {
-      await controller.flush()
+      await controller.flush()  
     }
     if (page) {
       await page.close()
@@ -57,7 +63,7 @@ describe('Puppeteer: Wrap Methods Tests Validation', function() {
     if (browser) {
       await browser.close()
     }
-    await this.sleep(20000)
+      await new Promise(resolve => setTimeout(resolve, 20000))
     await verifyPagestateIssuesCount('wrapMethods', 'automation_Puppeteer')
   })
 

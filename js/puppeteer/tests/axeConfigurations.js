@@ -188,7 +188,8 @@ describe('Puppeteer: Axe Watcher with Multiple Axe Configurations', function() {
   
   after(async function() {
     this.timeout(300000) // 5 minutes for API validation
-    await this.sleep(20000)
+    // Wait 20 seconds before API validation
+    await new Promise(resolve => setTimeout(resolve, 20000))
     await verifyPagestateIssuesCount('axeConfigs', 'automation_Puppeteer')
   })
 })

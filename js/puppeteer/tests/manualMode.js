@@ -26,7 +26,13 @@ describe('Puppeteer: Manual Mode Tests Validation', function () {
           autoAnalyze: false // Set to false for Manual Mode
         },
         headless: false,
-         args: ['--headless=new', '--no-sandbox', '--disable-setuid-sandbox']
+        args: [
+          '--headless=new',
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--ignore-certificate-errors',
+          '--ignore-ssl-errors'
+        ]
       })
     )
   })
@@ -46,7 +52,7 @@ describe('Puppeteer: Manual Mode Tests Validation', function () {
     if (browser) {
       await browser.close()
     }
-    await this.sleep(20000)
+    await new Promise(resolve => setTimeout(resolve, 20000))
     await verifyPagestateIssuesCount('manualMode', 'automation_Puppeteer')
   })
 

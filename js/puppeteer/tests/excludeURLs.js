@@ -81,7 +81,13 @@ describe('Puppeteer: Axe Watcher with Excluded URLs Configurations', function() 
           puppeteerConfig({
             axe: configObj.axe,
             headless: false,
-            args: ['--headless=new', '--no-sandbox', '--disable-setuid-sandbox']
+            args: [
+              '--headless=new',
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--ignore-certificate-errors',
+              '--ignore-ssl-errors'
+            ]
           })
         )
       })
@@ -125,7 +131,7 @@ describe('Puppeteer: Axe Watcher with Excluded URLs Configurations', function() 
   
   after(async function() {
     this.timeout(300000) // 5 minutes for API validation
-    await this.sleep(20000)
+    await new Promise(resolve => setTimeout(resolve, 20000))
     await verifyPagestateIssuesCount('excludeUrls', 'automation_Puppeteer')
   })
 })

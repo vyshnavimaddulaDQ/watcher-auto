@@ -73,7 +73,13 @@ describe('Puppeteer: Edge Cases Tests Validation', function () {
 
 
        // Always use these recommended args
-      const defaultArgs = ['--headless=new', '--no-sandbox', '--disable-setuid-sandbox']
+      const defaultArgs = [
+        '--headless=new',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--ignore-certificate-errors',
+        '--ignore-ssl-errors'
+      ]
       // Merge with any test-specific args (avoid duplicates)
       const launchArgs = args ? [...new Set([...defaultArgs, ...args])] : defaultArgs
       
