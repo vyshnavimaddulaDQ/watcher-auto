@@ -58,6 +58,10 @@ jobs:
             npm install
           fi
 
+      - name: Install Playwright browsers
+        if: matrix.framework.name == 'PlaywrightTest' || matrix.framework.name == 'Playwright'
+        run: npx playwright install --with-deps chromium
+
       - name: Setup Java
         run: |
           sudo apt-get update
