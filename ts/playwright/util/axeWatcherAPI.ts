@@ -3,6 +3,7 @@ import 'dotenv/config';
 import tokenManager from './tokenManager';
 import logger from './logger';
 import { testData } from '../resources/testData';
+import playwright from 'playwright';
 
 const API_URL = 'https://axe-qa.dequelabs.com/api/axe-watcher';
 
@@ -79,10 +80,54 @@ class AxeWatcherAPI {
    * Get branches for a project
    */
   async getBranches(projectId: string, token: string, branch?: string): Promise<Branch[]> {
-    // Wait 20 seconds before making the API call to allow API to sync
-    logger.info('🕐 Starting 20 second wait before fetching branches...');
-    await this.sleep(20000);
-    logger.info('🕐 Wait completed, proceeding with API call...');
+ // Wait 20 seconds before making the API call to allow API to sync
+ logger.info('🕐 Starting 20 second wait before fetching branches...');
+ await this.sleep(60000);
+ logger.info('🕐 Wait completed, proceeding with API call...');
+    // Reload the branches page in headed browser instead of waiting
+    logger.info('🔄 Reloading branches page in headed browser...');
+    const branchesUrl = `https://axe-qa.dequelabs.com/axe-watcher/projects/${projectId}/branches`;
+    
+    let browser: playwright.Browser | null = null;
+    try {
+      browser = await playwright.chromium.launch({
+        headless: false,
+        args: ['--no-sandbox', '--disable-dev-shm-usage', '--ignore-certificate-errors', '--ignore-ssl-errors']
+      });
+      
+      const context = await browser.newContext({
+        viewport: { width: 1920, height: 1080 }
+      });
+      
+      const page = await context.newPage();
+      
+      // Navigate to branches page with more lenient wait condition
+      logger.info(`📍 Navigating to: ${branchesUrl}`);
+      await page.goto(branchesUrl, { waitUntil: 'load', timeout: 60000 });
+      
+      // Wait for the page to be interactive
+      await page.waitForLoadState('domcontentloaded', { timeout: 30000 });
+      
+      // Reload the page to trigger any processing
+      logger.info('🔄 Reloading page...');
+      await page.reload({ waitUntil: 'load', timeout: 60000 });
+      
+      // Wait for the page to be interactive after reload
+      await page.waitForLoadState('domcontentloaded', { timeout: 30000 });
+      
+      // Wait a bit for any async operations to complete
+      await page.waitForTimeout(3000);
+      
+      await page.close();
+      await context.close();
+      logger.info('✅ Page reload completed, proceeding with API call...');
+    } catch (error: any) {
+      logger.warn(`⚠️ Failed to reload page: ${error.message}. Continuing with API call...`);
+    } finally {
+      if (browser) {
+        await browser.close();
+      }
+    }
     
     let url = `${API_URL}/v2/${projectId}/branches?`;
     const params: string[] = ['x-pagination-page=1', 'x-pagination-per-page=5'];
