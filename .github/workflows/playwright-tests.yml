@@ -107,13 +107,35 @@ jobs:
           ref: gh-pages
           path: gh-pages
 
-      - name: Build test report
-        uses: simple-elf/allure-report-action@v1.9
+      - name: Setup Allure
         if: always()
-        with:
-          gh_pages: gh-pages
-          allure_history: allure-history
-          allure_results: allure-results
+        run: |
+          wget -qO- https://github.com/allure-framework/allure2/releases/download/2.34.1/allure-2.34.1.tgz | tar -xz
+          sudo mv allure-2.34.1 /opt/allure
+          sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure
+
+      - name: Build test report
+        if: always()
+        run: |
+          # Create allure-history directory if it doesn't exist
+          mkdir -p allure-history
+          
+          # Copy existing history if it exists
+          if [ -d "gh-pages/allure-history" ]; then
+            cp -r gh-pages/allure-history/* allure-history/ || true
+          fi
+          
+          # Generate new Allure report
+          allure generate allure-results -o allure-report --clean
+          
+          # Copy new report to history
+          timestamp=$(date +%Y%m%d_%H%M%S)
+          mkdir -p "allure-history/$timestamp"
+          cp -r allure-report/* "allure-history/$timestamp/" || true
+          
+          # Create index.html that redirects to latest report
+          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url='$timestamp'/index.html"></head></html>' > allure-history/index.html
+        continue-on-error: true
 
       - name: Publish test report
         uses: peaceiris/actions-gh-pages@v4
