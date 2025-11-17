@@ -136,6 +136,9 @@ class AxeWatcherAPI {
       params.push(`branch=${encodeURIComponent(branch)}`);
     }
 
+    // Add cache-busting timestamp to ensure fresh data
+    params.push(`_t=${Date.now()}`);
+
     url += params.join('&');
 
     const response: AxiosResponse<Branch[]> = await axios.get(url, {
@@ -143,6 +146,9 @@ class AxeWatcherAPI {
         Authorization: `Bearer ${token}`,
         'x-pagination-page': '1',
         'x-pagination-per-page': '5',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     });
 
