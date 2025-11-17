@@ -82,7 +82,7 @@ class AxeWatcherAPI {
   async getBranches(projectId: string, token: string, branch?: string): Promise<Branch[]> {
  // Wait 20 seconds before making the API call to allow API to sync
  logger.info('🕐 Starting 20 second wait before fetching branches...');
- await this.sleep(60000);
+ await this.sleep(30000);
  logger.info('🕐 Wait completed, proceeding with API call...');
     // Reload the branches page in headless browser instead of waiting
     logger.info('🔄 Reloading branches page in headless browser...');
