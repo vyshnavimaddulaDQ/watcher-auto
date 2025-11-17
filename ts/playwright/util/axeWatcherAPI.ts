@@ -218,6 +218,8 @@ class AxeWatcherAPI {
     projectName: string = 'automation_Playwright Test' 
   ): Promise<void> {
     logger.info('========== API Validation Starting ==========');
+    logger.info(`Test Suite: ${testDataKey}`);
+    logger.info(`Validation started at: ${new Date().toISOString()}`);
 
     const validationErrors: string[] = [];
 
@@ -263,10 +265,19 @@ class AxeWatcherAPI {
       logger.info(`✅ Found project: ${targetProject.name}`);
       logger.info(`   ID: ${targetProject.project_id}`);
 
-      // Step 4: Get Branches
+      // Step 4: Get Branches with retry logic to ensure fresh data
       logger.info('Step 4: Fetching branches...');
+      
+      // Fetch branches multiple times with delays to ensure we get fresh data
+      // This is important when multiple test suites run sequentially
       let branches = await this.getBranches(targetProject.project_id, token);
-      logger.info(`✅ Got ${branches.length} branches`);
+      logger.info(`✅ Got ${branches.length} branches (first fetch)`);
+      
+      // Wait a bit and fetch again to ensure we have the latest data after all flushes
+      logger.info('🔄 Waiting and fetching fresh branch data to ensure latest counts...');
+      await this.sleep(15000); // Additional 15 seconds wait
+      branches = await this.getBranches(targetProject.project_id, token);
+      logger.info(`✅ Got ${branches.length} branches (fresh fetch)`);
 
       // Step 5: Validate Branches against test data
       logger.info('Step 5: Validating branches against test data...');
@@ -284,6 +295,7 @@ class AxeWatcherAPI {
       logger.info(`Validating branch: ${mainBranch.name}`);
       logger.info(`  Actual Issues: ${mainBranch.total_issues}`);
       logger.info(`  Actual Page States: ${mainBranch.page_states}`);
+      logger.info(`  Fetch timestamp: ${new Date().toISOString()}`);
 
       // Validate issues count (actual should be >= expected)
       if (mainBranch.total_issues < expectedIssues) {
