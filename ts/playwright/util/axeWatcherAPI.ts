@@ -84,14 +84,14 @@ class AxeWatcherAPI {
  logger.info('🕐 Starting 20 second wait before fetching branches...');
  await this.sleep(60000);
  logger.info('🕐 Wait completed, proceeding with API call...');
-    // Reload the branches page in headed browser instead of waiting
-    logger.info('🔄 Reloading branches page in headed browser...');
+    // Reload the branches page in headless browser instead of waiting
+    logger.info('🔄 Reloading branches page in headless browser...');
     const branchesUrl = `https://axe-qa.dequelabs.com/axe-watcher/projects/${projectId}/branches`;
     
     let browser: playwright.Browser | null = null;
     try {
       browser = await playwright.chromium.launch({
-        headless: false,
+        headless: true,
         args: ['--no-sandbox', '--disable-dev-shm-usage', '--ignore-certificate-errors', '--ignore-ssl-errors']
       });
       
@@ -259,7 +259,7 @@ class AxeWatcherAPI {
 
       // Step 4: Get Branches
       logger.info('Step 4: Fetching branches...');
-      const branches = await this.getBranches(targetProject.project_id, token);
+      let branches = await this.getBranches(targetProject.project_id, token);
       logger.info(`✅ Got ${branches.length} branches`);
 
       // Step 5: Validate Branches against test data
