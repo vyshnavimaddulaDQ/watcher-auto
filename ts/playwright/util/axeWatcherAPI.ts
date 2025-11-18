@@ -80,8 +80,8 @@ class AxeWatcherAPI {
    * Get branches for a project
    */
   async getBranches(projectId: string, token: string, branch?: string): Promise<Branch[]> {
- // Wait 20 seconds before making the API call to allow API to sync
- logger.info('🕐 Starting 20 second wait before fetching branches...');
+ // Wait 30 seconds before making the API call to allow API to sync (min 60s total, max 120s total)
+ logger.info('🕐 Starting 30 second wait before fetching branches...');
  await this.sleep(30000);
  logger.info('🕐 Wait completed, proceeding with API call...');
     // Reload the branches page in headless browser instead of waiting
@@ -101,22 +101,22 @@ class AxeWatcherAPI {
       
       const page = await context.newPage();
       
-      // Navigate to branches page with more lenient wait condition
+      // Navigate to branches page with timeout set to meet max 120s requirement
       logger.info(`📍 Navigating to: ${branchesUrl}`);
-      await page.goto(branchesUrl, { waitUntil: 'load', timeout: 60000 });
+      await page.goto(branchesUrl, { waitUntil: 'load', timeout: 10000 });
       
       // Wait for the page to be interactive
-      await page.waitForLoadState('domcontentloaded', { timeout: 30000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
       
       // Reload the page to trigger any processing
       logger.info('🔄 Reloading page...');
-      await page.reload({ waitUntil: 'load', timeout: 60000 });
+      await page.reload({ waitUntil: 'load', timeout: 8000 });
       
       // Wait for the page to be interactive after reload
-      await page.waitForLoadState('domcontentloaded', { timeout: 30000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
       
       // Wait a bit for any async operations to complete
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(2000);
       
       await page.close();
       await context.close();
@@ -284,7 +284,7 @@ class AxeWatcherAPI {
       
       // Wait a bit and fetch again to ensure we have the latest data after all flushes
       logger.info('🔄 Waiting and fetching fresh branch data to ensure latest counts...');
-      await this.sleep(15000); // Additional 15 seconds wait
+      await this.sleep(0); // No additional wait between fetches
       branches = await this.getBranches(targetProject.project_id, token, branchName);
       logger.info(`✅ Got ${branches.length} branches (fresh fetch)`);
 

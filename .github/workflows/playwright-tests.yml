@@ -75,6 +75,13 @@ jobs:
         run: |
           mkdir -p logs allure-results
 
+      - name: Configure Git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git config --global init.defaultBranch main
+        continue-on-error: true
+
       - name: Set environment variables
         run: |
           echo "PLAYWRIGHT_API_KEY_GIT=${{ secrets.PLAYWRIGHT_API_KEY_GIT || 'c79e09b0-43fc-44a5-aff5-47fb5fe8c21b' }}" >> $GITHUB_ENV
@@ -89,6 +96,36 @@ jobs:
         run: |
           npm run test-all && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
 
+      - name: Verify test results directories
+        if: always()
+        run: |
+          echo "Checking for test result directories..."
+          echo "Current directory: $(pwd)"
+          echo ""
+          echo "Checking ts/playwright/allure-results:"
+          if [ -d "ts/playwright/allure-results" ]; then
+            ls -la ts/playwright/allure-results/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find ts/playwright/allure-results -type f 2>/dev/null | wc -l)"
+          else
+            echo "allure-results directory not found"
+          fi
+          echo ""
+          echo "Checking ts/playwright/logs:"
+          if [ -d "ts/playwright/logs" ]; then
+            ls -la ts/playwright/logs/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find ts/playwright/logs -type f 2>/dev/null | wc -l)"
+          else
+            echo "logs directory not found"
+          fi
+          echo ""
+          echo "Checking ts/playwright/allure-report:"
+          if [ -d "ts/playwright/allure-report" ]; then
+            ls -la ts/playwright/allure-report/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find ts/playwright/allure-report -type f 2>/dev/null | wc -l)"
+          else
+            echo "allure-report directory not found"
+          fi
+
       - name: Setup Allure
         if: always()
         run: |
@@ -99,8 +136,16 @@ jobs:
       - name: Generate Allure Report
         if: always()
         run: |
-          # Generate Allure report
-          allure generate allure-results -o allure-report --clean || echo "No test results to generate report"
+          # Check if allure-results directory exists and has files
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results 2>/dev/null)" ]; then
+            echo "Generating Allure report from allure-results..."
+            allure generate allure-results -o allure-report --clean
+            echo "Allure report generated successfully"
+          else
+            echo "No test results found in allure-results directory"
+            echo "Creating empty allure-report directory"
+            mkdir -p allure-report
+          fi
         continue-on-error: true
 
       - name: Upload Allure Results
@@ -108,24 +153,27 @@ jobs:
         if: always()
         with:
           name: allure-results
-          path: allure-results/
+          path: ts/playwright/allure-results/
           retention-days: 30
+          if-no-files-found: warn
 
       - name: Upload Allure HTML Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: allure-report
-          path: allure-report/
+          path: ts/playwright/allure-report/
           retention-days: 30
+          if-no-files-found: warn
 
       - name: Upload Logs
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: logs
-          path: logs/
+          path: ts/playwright/logs/
           retention-days: 30
+          if-no-files-found: warn
 
       - name: Load test report history
         uses: actions/checkout@v4
@@ -138,25 +186,33 @@ jobs:
       - name: Build test report
         if: always()
         run: |
+          # Change to working directory
+          cd ${{ env.WORKING_DIRECTORY }}
+          
           # Create allure-history directory if it doesn't exist
-          mkdir -p allure-history
+          mkdir -p ../allure-history
           
           # Copy existing history if it exists
-          if [ -d "gh-pages/allure-history" ]; then
-            cp -r gh-pages/allure-history/* allure-history/ || true
+          if [ -d "../gh-pages/allure-history" ]; then
+            cp -r ../gh-pages/allure-history/* ../allure-history/ || true
           fi
           
-          # Generate new Allure report
-          allure generate allure-results -o allure-report --clean
-          
-          # Copy new report to history
-          timestamp=$(date +%Y%m%d_%H%M%S)
-          mkdir -p "allure-history/$timestamp"
-          cp -r allure-report/* "allure-history/$timestamp/" || true
-          
-          # Create index.html that redirects to latest report
-          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url='$timestamp'/index.html"></head></html>' > allure-history/index.html
+          # Generate new Allure report if results exist
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results 2>/dev/null)" ]; then
+            allure generate allure-results -o allure-report --clean
+            
+            # Copy new report to history
+            timestamp=$(date +%Y%m%d_%H%M%S)
+            mkdir -p "../allure-history/$timestamp"
+            cp -r allure-report/* "../allure-history/$timestamp/" || true
+            
+            # Create index.html that redirects to latest report
+            echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url='$timestamp'/index.html"></head></html>' > ../allure-history/index.html
+          else
+            echo "No test results found, skipping report generation"
+          fi
         continue-on-error: true
+        working-directory: ${{ env.WORKING_DIRECTORY }}
 
       - name: Publish test report
         uses: peaceiris/actions-gh-pages@v4
@@ -165,4 +221,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: allure-history
+          force_orphan: false
 
