@@ -56,7 +56,7 @@ jobs:
 
       - name: Set environment variables
         run: |
-          echo "PW_TEST_API_KEY_GIT=${{ secrets.PW_TEST_API_KEY_GIT || 'fea891a5-938f-40e4-a819-b53806c30d6f' }}" >> $GITHUB_ENV
+          echo "PW_TEST_API_KEY_GIT=${{ secrets.PW_TEST_API_KEY_GIT || '74ac9df8-db0d-439d-8641-b7b7ba1eb1b1' }}" >> $GITHUB_ENV
           echo "AXE_PASSWORD=${{ secrets.AXE_PASSWORD || 'Password@123' }}" >> $GITHUB_ENV
           echo "TARGET_ENVIRONMENT=${{ secrets.TARGET_ENVIRONMENT || 'qa' }}" >> $GITHUB_ENV
           echo "CI=true" >> $GITHUB_ENV
