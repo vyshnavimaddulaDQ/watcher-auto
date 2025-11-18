@@ -8,6 +8,7 @@ const {
   wrapPuppeteerPage
 } = require('@axe-core/watcher')
 const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
+const { createAndSwitchToBranch } = require('../util/gitBranchManager')
 
 
 // Edge Case Test Configurations
@@ -65,6 +66,13 @@ const edgeCasesConfigs = [
 
 describe('Puppeteer: Edge Cases Tests Validation', function () {
   this.timeout(60000)
+  
+  before(async function() {
+    // Create and switch to git branch before running tests
+    createAndSwitchToBranch('puppeteer_edgecases')
+    process.env.GIT_BRANCH = 'puppeteer_edgecases'
+  })
+  
   edgeCasesConfigs.forEach(({ description, axe, expectedError, args }) => {
     it(description, async function () {
       let browser

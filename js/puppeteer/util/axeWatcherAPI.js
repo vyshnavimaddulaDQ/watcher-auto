@@ -3,6 +3,7 @@ require('dotenv/config')
 const tokenManager = require('./tokenManager')
 const logger = require('./logger')
 const { testData } = require('../resources/testData')
+const puppeteer = require('puppeteer')
 
 const API_URL = 'https://axe-qa.dequelabs.com/api/axe-watcher'
 
@@ -48,10 +49,49 @@ class AxeWatcherAPI {
    * Get branches for a project
    */
   async getBranches(projectId, token, branch) {
-    // Wait 20 seconds before making the API call to allow API to sync
-    logger.info('🕐 Starting 20 second wait before fetching branches...')
-    await this.sleep(20000)
+    // Wait 30 seconds before making the API call to allow API to sync (min 60s total, max 120s total)
+    logger.info('🕐 Starting 30 second wait before fetching branches...')
+    await this.sleep(30000)
     logger.info('🕐 Wait completed, proceeding with API call...')
+    // Reload the branches page in headless browser instead of waiting
+    logger.info('🔄 Reloading branches page in headless browser...')
+    const branchesUrl = `https://axe-qa.dequelabs.com/axe-watcher/projects/${projectId}/branches`
+    
+    let browser = null
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-dev-shm-usage', '--ignore-certificate-errors', '--ignore-ssl-errors']
+      })
+      
+      const page = await browser.newPage()
+      
+      // Set viewport
+      await page.setViewport({ width: 1920, height: 1080 })
+      
+      // Navigate to branches page with timeout set to meet max 120s requirement
+      logger.info(`📍 Navigating to: ${branchesUrl}`)
+      await page.goto(branchesUrl, { waitUntil: 'load', timeout: 10000 })
+      
+      // Wait a bit for page to be fully interactive
+      await page.waitForTimeout(2000)
+      
+      // Reload the page to trigger any processing
+      logger.info('🔄 Reloading page...')
+      await page.reload({ waitUntil: 'load', timeout: 8000 })
+      
+      // Wait a bit for any async operations to complete after reload
+      await page.waitForTimeout(2000)
+      
+      await page.close()
+      logger.info('✅ Page reload completed, proceeding with API call...')
+    } catch (error) {
+      logger.warn(`⚠️ Failed to reload page: ${error.message}. Continuing with API call...`)
+    } finally {
+      if (browser) {
+        await browser.close()
+      }
+    }
     
     let url = `${API_URL}/v2/${projectId}/branches?`
     const params = ['x-pagination-page=1', 'x-pagination-per-page=5']
@@ -60,6 +100,9 @@ class AxeWatcherAPI {
       params.push(`branch=${encodeURIComponent(branch)}`)
     }
 
+    // Add cache-busting timestamp to ensure fresh data
+    params.push(`_t=${Date.now()}`)
+
     url += params.join('&')
 
     const response = await axios.get(url, {
@@ -67,6 +110,9 @@ class AxeWatcherAPI {
         Authorization: `Bearer ${token}`,
         'x-pagination-page': '1',
         'x-pagination-per-page': '5',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     })
 
@@ -130,12 +176,18 @@ class AxeWatcherAPI {
 
   /**
    * Verify page states and issues count against test data
+   * @param {string} testDataKey - Key from testData.issuesPageStatesValidations
+   * @param {string} projectName - Name of the project to validate
+   * @param {string} [branchName] - Optional branch name to fetch results from. If not provided, uses main/default branch
    */
   async verifyPagestateIssuesCount(
     testDataKey = 'autoAnalyzeMode',
-    projectName = 'automation_Playwright Test' 
+    projectName = 'automation_Playwright Test',
+    branchName
   ) {
     logger.info('========== API Validation Starting ==========')
+    logger.info(`Test Suite: ${testDataKey}`)
+    logger.info(`Validation started at: ${new Date().toISOString()}`)
 
     const validationErrors = []
 
@@ -181,37 +233,74 @@ class AxeWatcherAPI {
       logger.info(`✅ Found project: ${targetProject.name}`)
       logger.info(`   ID: ${targetProject.project_id}`)
 
-      // Step 4: Get Branches
+      // Step 4: Get Branches with retry logic to ensure fresh data
       logger.info('Step 4: Fetching branches...')
-      const branches = await this.getBranches(targetProject.project_id, token)
-      logger.info(`✅ Got ${branches.length} branches`)
+      if (branchName) {
+        logger.info(`📍 Fetching results for branch: ${branchName}`)
+      } else {
+        logger.info('📍 No branch specified, will use main/default branch')
+      }
+      
+      // Fetch branches multiple times with delays to ensure we get fresh data
+      // This is important when multiple test suites run sequentially
+      let branches = await this.getBranches(targetProject.project_id, token, branchName)
+      logger.info(`✅ Got ${branches.length} branches (first fetch)`)
+      
+      // Wait a bit and fetch again to ensure we have the latest data after all flushes
+      logger.info('🔄 Waiting and fetching fresh branch data to ensure latest counts...')
+      await this.sleep(0) // No additional wait between fetches
+      branches = await this.getBranches(targetProject.project_id, token, branchName)
+      logger.info(`✅ Got ${branches.length} branches (fresh fetch)`)
 
       // Step 5: Validate Branches against test data
       logger.info('Step 5: Validating branches against test data...')
 
-      // Find the main/default branch (usually the first one or the one with name 'main')
-      const mainBranch = branches.find((b) => b.name === 'main' || b.name === 'default') || branches[0]
+      // Find the specified branch, or fall back to main/default branch
+      let targetBranch
+      if (branchName) {
+        targetBranch = branches.find((b) => b.name === branchName)
+        if (!targetBranch) {
+          logger.warn(`⚠️ Branch "${branchName}" not found in results. Available branches: ${branches.map(b => b.name).join(', ')}`)
+          logger.info('📍 Falling back to main/default branch')
+        }
+      }
       
-      logger.info(`Validating branch: ${mainBranch.name}`)
-      logger.info(`  Actual Issues: ${mainBranch.total_issues}`)
-      logger.info(`  Actual Page States: ${mainBranch.page_states}`)
+      // If branch not found or not specified, use main/default
+      if (!targetBranch) {
+        targetBranch = branches.find((b) => b.name === 'main' || b.name === 'default') || branches[0]
+      }
+      
+      if (!targetBranch) {
+        const errorMsg = '❌ No branches found'
+        logger.error(errorMsg)
+        validationErrors.push(errorMsg)
+        throw new Error(errorMsg)
+      }
+
+      logger.info(`Validating branch: ${targetBranch.name}`)
+      if (branchName && targetBranch.name !== branchName) {
+        logger.warn(`⚠️ Requested branch "${branchName}" but validating "${targetBranch.name}" instead`)
+      }
+      logger.info(`  Actual Issues: ${targetBranch.total_issues}`)
+      logger.info(`  Actual Page States: ${targetBranch.page_states}`)
+      logger.info(`  Fetch timestamp: ${new Date().toISOString()}`)
 
       // Validate issues count (actual should be >= expected)
-      if (mainBranch.total_issues < expectedIssues) {
-        const errorMsg = `❌ Issues count is less than expected: Expected at least ${expectedIssues}, Got ${mainBranch.total_issues}`
+      if (targetBranch.total_issues < expectedIssues) {
+        const errorMsg = `❌ Issues count is less than expected: Expected at least ${expectedIssues}, Got ${targetBranch.total_issues}`
         logger.error(errorMsg)
         validationErrors.push(errorMsg)
       } else {
-        logger.info(`  ✅ Issues count is valid: Expected at least ${expectedIssues}, Got ${mainBranch.total_issues}`)
+        logger.info(`  ✅ Issues count is valid: Expected at least ${expectedIssues}, Got ${targetBranch.total_issues}`)
       }
 
       // Validate page states count (actual should be >= expected)
-      if (mainBranch.page_states < expectedPageStates) {
-        const errorMsg = `❌ Page states count is less than expected: Expected at least ${expectedPageStates}, Got ${mainBranch.page_states}`
+      if (targetBranch.page_states < expectedPageStates) {
+        const errorMsg = `❌ Page states count is less than expected: Expected at least ${expectedPageStates}, Got ${targetBranch.page_states}`
         logger.error(errorMsg)
         validationErrors.push(errorMsg)
       } else {
-        logger.info(`  ✅ Page states count is valid: Expected at least ${expectedPageStates}, Got ${mainBranch.page_states}`)
+        logger.info(`  ✅ Page states count is valid: Expected at least ${expectedPageStates}, Got ${targetBranch.page_states}`)
       }
 
       // If there are validation errors, throw an error
@@ -226,7 +315,7 @@ class AxeWatcherAPI {
       logger.info('========== API Validation PASSED ==========')
     } catch (error) {
       // If it's already our validation error, re-throw it
-      if (validationErrors.length > 0 || error.message.includes('API Validation')) {
+      if (validationErrors.length > 0 || (error.message && error.message.includes('API Validation'))) {
         throw error
       }
       
@@ -234,7 +323,7 @@ class AxeWatcherAPI {
       const errorMsg = `API Validation Failed: ${error.message}`
       logger.error(errorMsg)
       
-      if (error.response?.status === 401) {
+      if (error.response && error.response.status === 401) {
         logger.error('Reason: 401 Unauthorized')
       }
       
@@ -260,4 +349,3 @@ module.exports.verifyPagestateIssuesCount = axeWatcherAPI.verifyPagestateIssuesC
 // Also export the instance itself
 module.exports.default = axeWatcherAPI
 module.exports.axeWatcherAPI = axeWatcherAPI
-

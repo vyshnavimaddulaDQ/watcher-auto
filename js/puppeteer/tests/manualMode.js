@@ -8,6 +8,7 @@ const {
   wrapPuppeteerPage
 } = require('@axe-core/watcher')
 const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
+const { createAndSwitchToBranch, getCurrentBranch } = require('../util/gitBranchManager')
 
 const API_KEY = process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
@@ -18,6 +19,9 @@ describe('Puppeteer: Manual Mode Tests Validation', function () {
   let controller
 
   before(async () => {
+    // Create and switch to git branch before running tests
+    createAndSwitchToBranch('puppeteer_manualmode')
+    process.env.GIT_BRANCH = 'puppeteer_manualmode'
     browser = await puppeteer.launch(
       puppeteerConfig({
         axe: {
@@ -53,7 +57,9 @@ describe('Puppeteer: Manual Mode Tests Validation', function () {
       await browser.close()
     }
     await new Promise(resolve => setTimeout(resolve, 20000))
-    await verifyPagestateIssuesCount('manualMode', 'automation_Puppeteer')
+    // Get the current git branch name to fetch results from that branch
+    const currentBranch = getCurrentBranch()
+    await verifyPagestateIssuesCount('manualMode', 'automation_Puppeteer', currentBranch || undefined)
   })
 
   it('C130630 Verify zero findings in scan results when no Analyze() API is called', async () => {

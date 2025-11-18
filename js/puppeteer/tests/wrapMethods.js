@@ -8,6 +8,7 @@ const {
   wrapPuppeteerPage
 } = require('@axe-core/watcher')
 const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
+const { createAndSwitchToBranch, getCurrentBranch } = require('../util/gitBranchManager')
 
 const baseURL = testData.testUrls.actions
 
@@ -21,6 +22,9 @@ describe('Puppeteer: Wrap Methods Tests Validation', function() {
   let controller
 
   before(async function() {
+    // Create and switch to git branch before running tests
+    createAndSwitchToBranch('puppeteer_wrapmethods')
+    process.env.GIT_BRANCH = 'puppeteer_wrapmethods'
     this.timeout(60000) // 60 seconds for browser launch
     browser = await puppeteer.launch(
       puppeteerConfig({
@@ -64,7 +68,9 @@ describe('Puppeteer: Wrap Methods Tests Validation', function() {
       await browser.close()
     }
       await new Promise(resolve => setTimeout(resolve, 20000))
-    await verifyPagestateIssuesCount('wrapMethods', 'automation_Puppeteer')
+    // Get the current git branch name to fetch results from that branch
+    const currentBranch = getCurrentBranch()
+    await verifyPagestateIssuesCount('wrapMethods', 'automation_Puppeteer', currentBranch || undefined)
   })
 
   it('C130666 - Verify scan success and expected issues for wrap method click', async function() {

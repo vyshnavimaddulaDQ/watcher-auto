@@ -3,6 +3,7 @@ import { playwrightTest } from '@axe-core/watcher'
 import 'dotenv/config'
 import { allure } from 'allure-playwright'
 import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI'
+import { createAndSwitchToBranch } from 'utils/gitBranchManager'
 
 const API_KEY: string = process.env.PW_TEST_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
@@ -132,6 +133,13 @@ edgeCases.forEach(({ description, axe, expectedError, args }) => {
       })
     })
   }
+})
+
+// Run beforeAll to create branch
+test.beforeAll(() => {
+  // Create and switch to git branch before running tests
+  createAndSwitchToBranch('playwrighttest_edgecases')
+  process.env.GIT_BRANCH = 'playwrighttest_edgecases'
 })
 
 // Run afterAll once after all test suites are executed (only if tests were registered)

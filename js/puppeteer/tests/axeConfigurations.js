@@ -8,6 +8,7 @@ const {
   wrapPuppeteerPage
 } = require('@axe-core/watcher')
 const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
+const { createAndSwitchToBranch, getCurrentBranch } = require('../util/gitBranchManager')
 
 const API_KEY = process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
@@ -136,6 +137,12 @@ const axeConfigurations = [
 describe('Puppeteer: Axe Watcher with Multiple Axe Configurations', function() {
   this.timeout(180000) // 3 minutes timeout
   
+  before(async function() {
+    // Create and switch to git branch before running tests
+    createAndSwitchToBranch('puppeteer_axeconfigurations')
+    process.env.GIT_BRANCH = 'puppeteer_axeconfigurations'
+  })
+  
   axeConfigurations.forEach((configObj) => {
     describe(configObj.description, function() {
       let testBrowser
@@ -196,6 +203,8 @@ describe('Puppeteer: Axe Watcher with Multiple Axe Configurations', function() {
     this.timeout(300000) // 5 minutes for API validation
     // Wait 20 seconds before API validation
     await new Promise(resolve => setTimeout(resolve, 20000))
-    await verifyPagestateIssuesCount('axeConfigs', 'automation_Puppeteer')
+    // Get the current git branch name to fetch results from that branch
+    const currentBranch = getCurrentBranch()
+    await verifyPagestateIssuesCount('axeConfigs', 'automation_Puppeteer', currentBranch || undefined)
   })
 })

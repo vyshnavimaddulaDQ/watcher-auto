@@ -10,6 +10,7 @@ const {
 const { allure } = require('allure-mocha')
 const { testData: data } = require('../resources/testData')
 const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
+const { createAndSwitchToBranch, getCurrentBranch } = require('../util/gitBranchManager')
 const API_KEY = process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
 
@@ -19,6 +20,9 @@ describe('Puppeteer: AutoAnalyze Mode Tests Validation', () => {
   let controller
 
   before(async () => {
+    // Create and switch to git branch before running tests
+    createAndSwitchToBranch('puppeteer_autoanalyzemode')
+    process.env.GIT_BRANCH = 'puppeteer_autoanalyzemode'
     browser = await puppeteer.launch(
       puppeteerConfig({
         axe: {
@@ -54,7 +58,9 @@ describe('Puppeteer: AutoAnalyze Mode Tests Validation', () => {
     // Wait 20 seconds before calling the API to allow results to sync
     console.log('⏳ [AFTER HOOK] Waiting 20 seconds for Devhub card to process...')
     await new Promise(resolve => setTimeout(resolve, 20000))
-    await verifyPagestateIssuesCount('autoAnalyzeMode', 'automation_Puppeteer')
+    // Get the current git branch name to fetch results from that branch
+    const currentBranch = getCurrentBranch()
+    await verifyPagestateIssuesCount('autoAnalyzeMode', 'automation_Puppeteer', currentBranch || undefined)
   })
 
   afterEach(async () => {

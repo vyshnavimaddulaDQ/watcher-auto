@@ -8,6 +8,7 @@ const {
   wrapPuppeteerPage
 } = require('@axe-core/watcher')
 const { verifyPagestateIssuesCount } = require('../util/axeWatcherAPI')
+const { createAndSwitchToBranch, getCurrentBranch } = require('../util/gitBranchManager')
 
 const API_KEY = process.env.PUPPETEER_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
@@ -68,6 +69,12 @@ const excludeUrls = [
 
 describe('Puppeteer: Axe Watcher with Excluded URLs Configurations', function() {
   this.timeout(180000) // 3 minutes timeout
+  
+  before(async function() {
+    // Create and switch to git branch before running tests
+    createAndSwitchToBranch('puppeteer_excludeurls')
+    process.env.GIT_BRANCH = 'puppeteer_excludeurls'
+  })
   
   excludeUrls.forEach((configObj) => {
     describe(configObj.description, function() {
@@ -132,6 +139,8 @@ describe('Puppeteer: Axe Watcher with Excluded URLs Configurations', function() 
   after(async function() {
     this.timeout(300000) // 5 minutes for API validation
     await new Promise(resolve => setTimeout(resolve, 20000))
-    await verifyPagestateIssuesCount('excludeUrls', 'automation_Puppeteer')
+    // Get the current git branch name to fetch results from that branch
+    const currentBranch = getCurrentBranch()
+    await verifyPagestateIssuesCount('excludeUrls', 'automation_Puppeteer', currentBranch || undefined)
   })
 })

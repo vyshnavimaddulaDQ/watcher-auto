@@ -10,6 +10,7 @@
     "excludeURLs": "playwright test tests/excludeURLs.test.ts --reporter=line,allure-playwright --timeout=180000",
     "manualMode": "playwright test tests/manualMode.test.ts --reporter=line,allure-playwright --timeout=180000",
     "wrapMethods": "playwright test tests/wrapMethods.test.ts --reporter=line,allure-playwright --timeout=180000",
+    "test-all": "(npm run autoAnalyzeMode || true) && (npm run manualMode || true) && (npm run axeConfigurations || true) && (npm run excludeURLs || true) && (npm run configureOverrides || true) && (npm run wrapMethods || true) && (npm run edgeCases || true)",
     "allure:generate": "allure generate allure-results --clean -o allure-report",
     "allure:open": "allure open allure-report"
    

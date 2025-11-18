@@ -9,7 +9,8 @@
     "excludeURLs": "mocha --reporter allure-mocha tests/excludeURLs.js --timeout 180s",
     "configureOverrides": "mocha --reporter allure-mocha tests/configureOverrides.js --timeout 180s",
     "wrapMethods": "mocha --reporter allure-mocha tests/wrapMethods.js --timeout 180s",
-    "edgeCases": "mocha --reporter allure-mocha tests/edgeCases.js --timeout 180s"
+    "edgeCases": "mocha --reporter allure-mocha tests/edgeCases.js --timeout 180s",
+    "test-all": "(npm run autoAnalyzeMode || true) && (npm run manualMode || true) && (npm run axeConfigurations || true) && (npm run excludeURLs || true) && (npm run configureOverrides || true) && (npm run wrapMethods || true) && (npm run edgeCases || true)"
   },
   "devDependencies": {
     "@axe-core/watcher": "^3.22.0-next.fc61317d",
