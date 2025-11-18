@@ -81,6 +81,7 @@ describe('Playwright: Axe Watcher with Global configurations overrides', () => {
   before(async () => {
     // Create and switch to git branch before running tests
     createAndSwitchToBranch('playwright_configureoverrides');
+    process.env.GIT_BRANCH = 'playwright_configureoverrides';
   });
 
   axeConfigurations.forEach((configObj) => {

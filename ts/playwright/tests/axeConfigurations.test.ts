@@ -161,7 +161,10 @@ const axeConfigurations: {
 describe('Playwright: Axe Watcher with Multiple Configurations', () => {
   before(async () => {
     // Create and switch to git branch before running tests
+    // This sets process.env.GIT_BRANCH which will be used by the SDK
     createAndSwitchToBranch('playwright_axeconfigurations');
+    // Ensure the branch name is available for all configurations
+    process.env.GIT_BRANCH = 'playwright_axeconfigurations';
   });
 
   axeConfigurations.forEach((configObj) => {

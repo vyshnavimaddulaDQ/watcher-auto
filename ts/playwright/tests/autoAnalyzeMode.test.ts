@@ -21,6 +21,7 @@ const API_KEY: string = process.env.PLAYWRIGHT_API_KEY_GIT ?? 'PROVIDE API KEY!'
 before(async () => {
   // Create and switch to git branch before running tests
   createAndSwitchToBranch('playwright_autoanalyzemode')
+  process.env.GIT_BRANCH = 'playwright_autoanalyzemode';
   browserContext = await playwright.chromium.launchPersistentContext(
     '',
     playwrightConfig({

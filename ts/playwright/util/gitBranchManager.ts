@@ -24,7 +24,6 @@ export function createAndSwitchToBranch(branchName: string): boolean {
       // Switch to existing branch
       execSync(`git checkout ${branchName}`, { stdio: 'inherit' });
       logger.info(`✅ Switched to branch "${branchName}"`);
-      return true;
     } catch (error) {
       // Branch doesn't exist, create it
       logger.info(`📝 Creating new branch "${branchName}"...`);
@@ -35,8 +34,19 @@ export function createAndSwitchToBranch(branchName: string): boolean {
       // Create and switch to new branch
       execSync(`git checkout -b ${branchName}`, { stdio: 'inherit' });
       logger.info(`✅ Created and switched to branch "${branchName}" from "${currentBranch}"`);
-      return true;
     }
+
+    // Set environment variable for Axe Watcher to read
+    // The watcher reads branch name from git metadata, but setting env var ensures it's available
+    process.env.GIT_BRANCH = branchName;
+    
+    // Also set GITHUB_REF format for CI compatibility (if not already set)
+    if (!process.env.GITHUB_REF) {
+      process.env.GITHUB_REF = `refs/heads/${branchName}`;
+    }
+    
+    logger.info(`✅ Set GIT_BRANCH environment variable to: ${branchName}`);
+    return true;
   } catch (error: any) {
     logger.error(`❌ Failed to create/switch to branch "${branchName}": ${error.message}`);
     return false;

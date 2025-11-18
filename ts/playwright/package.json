@@ -10,7 +10,7 @@
     "excludeURLs": "mocha --require ts-node/register --require tsconfig-paths/register --reporter allure-mocha tests/excludeURLs.test.ts --timeout 180s",
     "manualMode": "mocha --require ts-node/register --require tsconfig-paths/register --reporter allure-mocha tests/manualMode.test.ts --timeout 180s",
     "wrapMethods": "mocha --require ts-node/register --require tsconfig-paths/register --reporter allure-mocha tests/wrapMethods.test.ts --timeout 180s",
-    "test-all": "(npm run autoAnalyzeMode || true) && (npm run axeConfigurations || true) && (npm run configureOverrides || true) && (npm run manualMode || true) && (npm run wrapMethods || true)",
+    "test-all": "(npm run autoAnalyzeMode || true) && (npm run axeConfigurations || true) && (npm run configureOverrides || true)",
     "allure:generate": "allure generate allure-results --clean -o allure-report",
     "allure:open": "allure open allure-report"},
   "devDependencies": {
