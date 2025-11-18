@@ -4,6 +4,7 @@ import { allure } from 'allure-playwright';
 import { PlaywrightController, playwrightConfig, wrapPlaywrightPage } from '@axe-core/watcher';
 import playwright from 'playwright';
 import 'dotenv/config';
+import { createAndSwitchToBranch } from 'utils/gitBranchManager';
 
 let page: playwright.Page;
 let browserContext: playwright.BrowserContext;
@@ -79,6 +80,11 @@ const negativeAxeConfigs: {
 ];
 
 describe('Playwright: Edge Cases Tests Validation', () => {
+  before(async () => {
+    // Create and switch to git branch before running tests
+    createAndSwitchToBranch('playwright_edgecases');
+  });
+
   negativeAxeConfigs.forEach(({ description, axe, expectedError, args }) => {
     it(description, async () => {
       try {

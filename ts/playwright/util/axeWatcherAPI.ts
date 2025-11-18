@@ -212,10 +212,14 @@ class AxeWatcherAPI {
 
   /**
    * Verify page states and issues count against test data
+   * @param testDataKey - Key from testData.issuesPageStatesValidations
+   * @param projectName - Name of the project to validate
+   * @param branchName - Optional branch name to fetch results from. If not provided, uses main/default branch
    */
   async verifyPagestateIssuesCount(
     testDataKey: string = 'autoAnalyzeMode',
-    projectName: string = 'automation_Playwright Test' 
+    projectName: string = 'automation_Playwright Test',
+    branchName?: string
   ): Promise<void> {
     logger.info('========== API Validation Starting ==========');
     logger.info(`Test Suite: ${testDataKey}`);
@@ -267,52 +271,72 @@ class AxeWatcherAPI {
 
       // Step 4: Get Branches with retry logic to ensure fresh data
       logger.info('Step 4: Fetching branches...');
+      if (branchName) {
+        logger.info(`📍 Fetching results for branch: ${branchName}`);
+      } else {
+        logger.info('📍 No branch specified, will use main/default branch');
+      }
       
       // Fetch branches multiple times with delays to ensure we get fresh data
       // This is important when multiple test suites run sequentially
-      let branches = await this.getBranches(targetProject.project_id, token);
+      let branches = await this.getBranches(targetProject.project_id, token, branchName);
       logger.info(`✅ Got ${branches.length} branches (first fetch)`);
       
       // Wait a bit and fetch again to ensure we have the latest data after all flushes
       logger.info('🔄 Waiting and fetching fresh branch data to ensure latest counts...');
       await this.sleep(15000); // Additional 15 seconds wait
-      branches = await this.getBranches(targetProject.project_id, token);
+      branches = await this.getBranches(targetProject.project_id, token, branchName);
       logger.info(`✅ Got ${branches.length} branches (fresh fetch)`);
 
       // Step 5: Validate Branches against test data
       logger.info('Step 5: Validating branches against test data...');
 
-      // Find the main/default branch (usually the first one or the one with name 'main')
-      const mainBranch = branches.find((b) => b.name === 'main' || b.name === 'default') || branches[0];
+      // Find the specified branch, or fall back to main/default branch
+      let targetBranch: Branch | undefined;
+      if (branchName) {
+        targetBranch = branches.find((b) => b.name === branchName);
+        if (!targetBranch) {
+          logger.warn(`⚠️ Branch "${branchName}" not found in results. Available branches: ${branches.map(b => b.name).join(', ')}`);
+          logger.info('📍 Falling back to main/default branch');
+        }
+      }
       
-      if (!mainBranch) {
+      // If branch not found or not specified, use main/default
+      if (!targetBranch) {
+        targetBranch = branches.find((b) => b.name === 'main' || b.name === 'default') || branches[0];
+      }
+      
+      if (!targetBranch) {
         const errorMsg = '❌ No branches found';
         logger.error(errorMsg);
         validationErrors.push(errorMsg);
         throw new Error(errorMsg);
       }
 
-      logger.info(`Validating branch: ${mainBranch.name}`);
-      logger.info(`  Actual Issues: ${mainBranch.total_issues}`);
-      logger.info(`  Actual Page States: ${mainBranch.page_states}`);
+      logger.info(`Validating branch: ${targetBranch.name}`);
+      if (branchName && targetBranch.name !== branchName) {
+        logger.warn(`⚠️ Requested branch "${branchName}" but validating "${targetBranch.name}" instead`);
+      }
+      logger.info(`  Actual Issues: ${targetBranch.total_issues}`);
+      logger.info(`  Actual Page States: ${targetBranch.page_states}`);
       logger.info(`  Fetch timestamp: ${new Date().toISOString()}`);
 
       // Validate issues count (actual should be >= expected)
-      if (mainBranch.total_issues < expectedIssues) {
-        const errorMsg = `❌ Issues count is less than expected: Expected at least ${expectedIssues}, Got ${mainBranch.total_issues}`;
+      if (targetBranch.total_issues < expectedIssues) {
+        const errorMsg = `❌ Issues count is less than expected: Expected at least ${expectedIssues}, Got ${targetBranch.total_issues}`;
         logger.error(errorMsg);
         validationErrors.push(errorMsg);
       } else {
-        logger.info(`  ✅ Issues count is valid: Expected at least ${expectedIssues}, Got ${mainBranch.total_issues}`);
+        logger.info(`  ✅ Issues count is valid: Expected at least ${expectedIssues}, Got ${targetBranch.total_issues}`);
       }
 
       // Validate page states count (actual should be >= expected)
-      if (mainBranch.page_states < expectedPageStates) {
-        const errorMsg = `❌ Page states count is less than expected: Expected at least ${expectedPageStates}, Got ${mainBranch.page_states}`;
+      if (targetBranch.page_states < expectedPageStates) {
+        const errorMsg = `❌ Page states count is less than expected: Expected at least ${expectedPageStates}, Got ${targetBranch.page_states}`;
         logger.error(errorMsg);
         validationErrors.push(errorMsg);
       } else {
-        logger.info(`  ✅ Page states count is valid: Expected at least ${expectedPageStates}, Got ${mainBranch.page_states}`);
+        logger.info(`  ✅ Page states count is valid: Expected at least ${expectedPageStates}, Got ${targetBranch.page_states}`);
       }
 
       // If there are validation errors, throw an error

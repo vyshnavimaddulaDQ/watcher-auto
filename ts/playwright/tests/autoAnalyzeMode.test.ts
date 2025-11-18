@@ -10,6 +10,7 @@ import {
 } from '@axe-core/watcher'
 import 'dotenv/config'
 import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI'
+import { createAndSwitchToBranch, getCurrentBranch } from 'utils/gitBranchManager'
 
 let page: playwright.Page
 let browserContext: playwright.BrowserContext
@@ -18,6 +19,8 @@ let controller: PlaywrightController
 const API_KEY: string = process.env.PLAYWRIGHT_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
 before(async () => {
+  // Create and switch to git branch before running tests
+  createAndSwitchToBranch('playwright_autoanalyzemode')
   browserContext = await playwright.chromium.launchPersistentContext(
     '',
     playwrightConfig({
@@ -48,7 +51,9 @@ afterEach(async () => {
 
 after(async () => {
   await browserContext.close()
-  await verifyPagestateIssuesCount('autoAnalyzeMode', 'automation_Playwright')
+  // Get the current git branch name to fetch results from that branch
+  const currentBranch = getCurrentBranch()
+  await verifyPagestateIssuesCount('autoAnalyzeMode', 'automation_Playwright', currentBranch || undefined)
 })
 
 describe('Playwright: AutoAnalyze Mode Tests Validation)', () => {

@@ -12,6 +12,7 @@ import {
 } from '@axe-core/watcher'
 import 'dotenv/config'
 import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI'
+import { createAndSwitchToBranch, getCurrentBranch } from 'utils/gitBranchManager'
 
 let page: playwright.Page
 let browserContext: playwright.BrowserContext
@@ -24,6 +25,8 @@ const API_KEY: string = process.env.PLAYWRIGHT_API_KEY_GIT ?? 'PROVIDE API KEY!'
     await page.waitForTimeout(ms);
   };
 before(async () => {
+  // Create and switch to git branch before running tests
+  createAndSwitchToBranch('playwright_wrapmethods')
   browserContext = await playwright.chromium.launchPersistentContext(
     '',
     playwrightConfig({
@@ -61,7 +64,9 @@ after(async () => {
   }
   
   try {
-    await verifyPagestateIssuesCount('wrapMethods', 'automation_Playwright')
+    // Get the current git branch name to fetch results from that branch
+    const currentBranch = getCurrentBranch()
+    await verifyPagestateIssuesCount('wrapMethods', 'automation_Playwright', currentBranch || undefined)
   } catch (error) {
     console.error('Error in API validation:', error)
     throw error

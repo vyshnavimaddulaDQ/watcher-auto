@@ -11,6 +11,7 @@ import {
 } from '@axe-core/watcher';
 import 'dotenv/config';
 import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI';
+import { createAndSwitchToBranch, getCurrentBranch } from 'utils/gitBranchManager';
 
 let page: playwright.Page;
 let browserContext: playwright.BrowserContext;
@@ -88,6 +89,11 @@ const axeConfigurations: {
 ];
 
 describe('Playwright: Axe Watcher with Excluded URLs Configurations', () => {
+  before(async () => {
+    // Create and switch to git branch before running tests
+    createAndSwitchToBranch('playwright_excludeurls');
+  });
+
   axeConfigurations.forEach((configObj) => {
     describe(configObj.description, () => {
       before(async () => {
@@ -134,7 +140,9 @@ describe('Playwright: Axe Watcher with Excluded URLs Configurations', () => {
   
   after(async () => {
     try {
-      await verifyPagestateIssuesCount('excludeUrls', 'automation_Playwright')
+      // Get the current git branch name to fetch results from that branch
+      const currentBranch = getCurrentBranch();
+      await verifyPagestateIssuesCount('excludeUrls', 'automation_Playwright', currentBranch || undefined)
     } catch (error) {
       console.error('Error in API validation:', error)
       throw error
