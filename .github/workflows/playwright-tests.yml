@@ -89,14 +89,42 @@ jobs:
         run: |
           npm run test-all && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
 
-      - name: Upload Allure Results and Logs
+      - name: Setup Allure
+        if: always()
+        run: |
+          wget -qO- https://github.com/allure-framework/allure2/releases/download/2.34.1/allure-2.34.1.tgz | tar -xz
+          sudo mv allure-2.34.1 /opt/allure
+          sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure
+
+      - name: Generate Allure Report
+        if: always()
+        run: |
+          # Generate Allure report
+          allure generate allure-results -o allure-report --clean || echo "No test results to generate report"
+        continue-on-error: true
+
+      - name: Upload Allure Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: allure-and-logs
-          path: |
-            allure-results/
-            logs/
+          name: allure-results
+          path: allure-results/
+          retention-days: 30
+
+      - name: Upload Allure HTML Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-report
+          path: allure-report/
+          retention-days: 30
+
+      - name: Upload Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs
+          path: logs/
           retention-days: 30
 
       - name: Load test report history
@@ -106,13 +134,6 @@ jobs:
         with:
           ref: gh-pages
           path: gh-pages
-
-      - name: Setup Allure
-        if: always()
-        run: |
-          wget -qO- https://github.com/allure-framework/allure2/releases/download/2.34.1/allure-2.34.1.tgz | tar -xz
-          sudo mv allure-2.34.1 /opt/allure
-          sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure
 
       - name: Build test report
         if: always()
@@ -144,18 +165,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: allure-history
-
-      - name: Notify on Slack
-        uses: slackapi/slack-github-action@v1.26
-        if: ${{ always() && github.event.inputs.publish-slack == 'true' }}
-        with:
-          channel-id: ${{ github.event.inputs.slack-channel }}
-          slack-message: |
-            ${{ job.status == 'success' && '✅ *Automation Regression Passed*' || '❌ *Automation Regression Failed*' }}
-             • *Platform:* `${{ github.event.inputs.framework }}`
-             • *Status:* `${{ job.status }}`
-             • *Watcher Version:* `${{ github.event.inputs.watcher-version }}`
-             📊 <https://dequelabs.github.io/qa-axe-watcher-daf/|View Allure Report>
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
