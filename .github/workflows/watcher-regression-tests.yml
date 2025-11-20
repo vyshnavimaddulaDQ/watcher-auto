@@ -72,6 +72,12 @@ jobs:
                 path: 'ts/playwright/allure-results'
               },
               { 
+                id: 'playwrighttest-tests.yml', 
+                name: 'PlaywrightTest',
+                artifactName: 'allure-results-playwrighttest',
+                path: 'ts/playwrightTest/allure-results'
+              },
+              { 
                 id: 'puppeteer-tests.yml', 
                 name: 'Puppeteer',
                 artifactName: 'allure-results-puppeteer',
@@ -235,6 +241,13 @@ jobs:
                 possiblePaths: ['ts/playwright/allure-results', 'allure-results', 'ts/playwright/allure-results/']
               },
               { 
+                id: 'playwrighttest-tests.yml', 
+                name: 'PlaywrightTest',
+                artifactName: 'allure-results-playwrighttest',
+                runId: '${{ steps.trigger-and-wait.outputs.playwrighttest-run-id }}',
+                possiblePaths: ['ts/playwrightTest/allure-results', 'allure-results', 'ts/playwrightTest/allure-results/']
+              },
+              { 
                 id: 'puppeteer-tests.yml', 
                 name: 'Puppeteer',
                 artifactName: 'allure-results-puppeteer',
@@ -314,7 +327,7 @@ jobs:
                     }
                   }
                   
-                  // If not found in expected paths, search recursively
+                  // If not found in expected paths, search recursively for allure-results directory
                   if (!sourceDir) {
                     console.log(`Searching for allure-results directory recursively...`);
                     const findAllureResults = (dir) => {
@@ -341,17 +354,52 @@ jobs:
                     }
                   }
                   
+                  // If still not found, check if files are directly in temp directory (artifact structure)
+                  if (!sourceDir) {
+                    console.log(`Checking if files are directly in temp directory...`);
+                    try {
+                      const items = fs.readdirSync(tempDir);
+                      // Check if there are JSON files (allure-results files are JSON)
+                      const jsonFiles = items.filter(item => {
+                        const fullPath = `${tempDir}/${item}`;
+                        return fs.statSync(fullPath).isFile() && (item.endsWith('.json') || item.endsWith('.txt') || item.endsWith('.xml'));
+                      });
+                      
+                      if (jsonFiles.length > 0) {
+                        // Files are directly in temp directory, use it as source
+                        sourceDir = tempDir;
+                        console.log(`Found ${jsonFiles.length} allure result files directly in temp directory`);
+                      }
+                    } catch (e) {
+                      console.log(`Error checking temp directory: ${e.message}`);
+                    }
+                  }
+                  
                   if (sourceDir && fs.existsSync(sourceDir)) {
                     const files = fs.readdirSync(sourceDir);
-                    if (files.length > 0) {
-                      console.log(`Copying ${files.length} files from ${workflow.name} to master-allure-results`);
-                      execSync(`cp -r "${sourceDir}"/* "${masterResultsDir}/" || true`);
+                    // Filter to only copy actual result files (not directories or zip files)
+                    const resultFiles = files.filter(file => {
+                      const fullPath = `${sourceDir}/${file}`;
+                      return fs.statSync(fullPath).isFile() && 
+                             (file.endsWith('.json') || file.endsWith('.txt') || file.endsWith('.xml') || file.endsWith('.properties'));
+                    });
+                    
+                    if (resultFiles.length > 0) {
+                      console.log(`Copying ${resultFiles.length} result files from ${workflow.name} to master-allure-results`);
+                      // Copy files individually to avoid copying unwanted files
+                      resultFiles.forEach(file => {
+                        try {
+                          fs.copyFileSync(`${sourceDir}/${file}`, `${masterResultsDir}/${file}`);
+                        } catch (e) {
+                          console.log(`Warning: Could not copy ${file}: ${e.message}`);
+                        }
+                      });
                       console.log(`✅ Successfully merged ${workflow.name} results`);
                     } else {
-                      console.log(`⚠️ No files found in ${sourceDir}`);
+                      console.log(`⚠️ No result files found in ${sourceDir}`);
                     }
                   } else {
-                    console.log(`⚠️ Could not find allure-results directory in artifact for ${workflow.name}`);
+                    console.log(`⚠️ Could not find allure-results directory or files in artifact for ${workflow.name}`);
                   }
                   
                   // Clean up temp directory
