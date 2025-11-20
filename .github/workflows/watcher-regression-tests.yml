@@ -232,14 +232,14 @@ jobs:
                 name: 'Playwright',
                 artifactName: 'allure-results-playwright',
                 runId: '${{ steps.trigger-and-wait.outputs.playwright-run-id }}',
-                sourcePath: 'ts/playwright/allure-results'
+                possiblePaths: ['ts/playwright/allure-results', 'allure-results', 'ts/playwright/allure-results/']
               },
               { 
                 id: 'puppeteer-tests.yml', 
                 name: 'Puppeteer',
                 artifactName: 'allure-results-puppeteer',
                 runId: '${{ steps.trigger-and-wait.outputs.puppeteer-run-id }}',
-                sourcePath: 'js/puppeteer/allure-results'
+                possiblePaths: ['js/puppeteer/allure-results', 'allure-results', 'js/puppeteer/allure-results/']
               }
             ];
             
@@ -263,6 +263,8 @@ jobs:
                   run_id: parseInt(workflow.runId)
                 });
                 
+                console.log(`Available artifacts for ${workflow.name}:`, artifacts.data.artifacts.map(a => a.name).join(', '));
+                
                 // Find the matching artifact
                 const artifact = artifacts.data.artifacts.find(a => a.name === workflow.artifactName);
                 
@@ -282,29 +284,85 @@ jobs:
                   execSync(`unzip -q -o ${zipPath} -d ${tempDir} || true`);
                   execSync(`rm -f ${zipPath} || true`);
                   
-                  // Copy allure-results to master directory
-                  const sourceDir = `${tempDir}/${workflow.sourcePath}`;
-                  if (fs.existsSync(sourceDir) && fs.statSync(sourceDir).isDirectory()) {
+                  // Debug: List what's in the extracted directory
+                  console.log(`Contents of ${tempDir}:`);
+                  try {
+                    const listFiles = (dir, prefix = '') => {
+                      const items = fs.readdirSync(dir);
+                      items.forEach(item => {
+                        const fullPath = `${dir}/${item}`;
+                        const stat = fs.statSync(fullPath);
+                        console.log(`${prefix}${item}${stat.isDirectory() ? '/' : ''}`);
+                        if (stat.isDirectory()) {
+                          listFiles(fullPath, prefix + '  ');
+                        }
+                      });
+                    };
+                    listFiles(tempDir);
+                  } catch (e) {
+                    console.log(`Error listing files: ${e.message}`);
+                  }
+                  
+                  // Try to find allure-results directory in various possible locations
+                  let sourceDir = null;
+                  for (const possiblePath of workflow.possiblePaths) {
+                    const testPath = `${tempDir}/${possiblePath}`;
+                    if (fs.existsSync(testPath) && fs.statSync(testPath).isDirectory()) {
+                      sourceDir = testPath;
+                      console.log(`Found allure-results at: ${possiblePath}`);
+                      break;
+                    }
+                  }
+                  
+                  // If not found in expected paths, search recursively
+                  if (!sourceDir) {
+                    console.log(`Searching for allure-results directory recursively...`);
+                    const findAllureResults = (dir) => {
+                      try {
+                        const items = fs.readdirSync(dir);
+                        for (const item of items) {
+                          const fullPath = `${dir}/${item}`;
+                          if (fs.statSync(fullPath).isDirectory()) {
+                            if (item === 'allure-results') {
+                              return fullPath;
+                            }
+                            const found = findAllureResults(fullPath);
+                            if (found) return found;
+                          }
+                        }
+                      } catch (e) {
+                        // Ignore errors
+                      }
+                      return null;
+                    };
+                    sourceDir = findAllureResults(tempDir);
+                    if (sourceDir) {
+                      console.log(`Found allure-results recursively at: ${sourceDir}`);
+                    }
+                  }
+                  
+                  if (sourceDir && fs.existsSync(sourceDir)) {
                     const files = fs.readdirSync(sourceDir);
                     if (files.length > 0) {
                       console.log(`Copying ${files.length} files from ${workflow.name} to master-allure-results`);
-                      execSync(`cp -r ${sourceDir}/* ${masterResultsDir}/ || true`);
+                      execSync(`cp -r "${sourceDir}"/* "${masterResultsDir}/" || true`);
+                      console.log(`✅ Successfully merged ${workflow.name} results`);
                     } else {
-                      console.log(`No files found in ${sourceDir}`);
+                      console.log(`⚠️ No files found in ${sourceDir}`);
                     }
                   } else {
-                    console.log(`Source directory ${sourceDir} does not exist`);
+                    console.log(`⚠️ Could not find allure-results directory in artifact for ${workflow.name}`);
                   }
                   
                   // Clean up temp directory
                   execSync(`rm -rf ${tempDir} || true`);
-                  
-                  console.log(`✅ Successfully merged ${workflow.name} results`);
                 } else {
                   console.log(`⚠️ Artifact ${workflow.artifactName} not found for ${workflow.name}`);
+                  console.log(`Available artifacts: ${artifacts.data.artifacts.map(a => a.name).join(', ')}`);
                 }
               } catch (error) {
                 console.log(`❌ Error downloading artifacts for ${workflow.name}: ${error.message}`);
+                console.log(error.stack);
               }
             }
             
