@@ -5,7 +5,7 @@ const { createLogger, format, transports } = winston;
 const { combine, timestamp, printf, label } = format;
 
 const logger = createLogger({
-  level: 'info',
+  level: 'debug',
   format: combine(
     label({ label: 'MyAppLabel' }), 
     timestamp(), 

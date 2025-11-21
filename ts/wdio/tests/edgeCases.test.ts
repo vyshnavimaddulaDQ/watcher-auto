@@ -7,9 +7,9 @@ import type { Capabilities } from '@wdio/types'
 import {
   getChromeBinaryPath,
   getChromedriverBinaryPath
-} from 'utils/setup-chrome-chromedriver'
-import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI'
-import { createAndSwitchToBranch, getCurrentBranch } from 'utils/gitBranchManager'
+} from '../utils/setup-chrome-chromedriver'
+import { verifyPagestateIssuesCount } from '../utils/axeWatcherAPI'
+import { createAndSwitchToBranch, getCurrentBranch } from '../utils/gitBranchManager'
 let browser: WebdriverIO.Browser;
 let controller: WdioController;
 

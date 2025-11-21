@@ -1,4 +1,0 @@
-{
-  "reporter": "allure-mocha",
-  "reporterOptions": ["resultsDir=allure-results", "extraReporters=spec"]
-}

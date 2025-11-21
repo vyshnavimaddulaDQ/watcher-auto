@@ -1,6 +1,6 @@
 import 'mocha'
 import { expect } from 'chai'
-import { testData as data } from '@resources/testData'
+import { testData as data } from '../resources/testData'
 import { wdioConfig, WdioController, wrapWdio } from '@axe-core/watcher'
 import { remote } from 'webdriverio'
 import 'dotenv/config'
@@ -9,9 +9,9 @@ import type { Capabilities } from '@wdio/types'
 import {
   getChromeBinaryPath,
   getChromedriverBinaryPath
-} from 'utils/setup-chrome-chromedriver'
-import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI'
-import { createAndSwitchToBranch, getCurrentBranch } from 'utils/gitBranchManager'
+} from '../utils/setup-chrome-chromedriver'
+import { verifyPagestateIssuesCount } from '../utils/axeWatcherAPI'
+import { createAndSwitchToBranch, getCurrentBranch } from '../utils/gitBranchManager'
 
 let browser: WebdriverIO.Browser
 let controller: WdioController

@@ -1,4 +1,4 @@
-name: WebdriverIO Tests
+name: WebdriverJS Tests
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ on:
       framework:
         description: 'Test framework name'
         required: false
-        default: 'WebdriverIO'
+        default: 'WebdriverJS'
         type: string
       watcher-version:
         description: 'Watcher version used'
@@ -26,11 +26,11 @@ on:
 
 env:
   NODE_VERSION: '22'
-  WORKING_DIRECTORY: './ts/wdio'
+  WORKING_DIRECTORY: './js/webdriverjs'
 
 jobs:
-  wdio-tests:
-    name: Run All WebdriverIO Tests
+  webdriverjs-tests:
+    name: Run All WebdriverJS Tests
     runs-on: ubuntu-latest
     timeout-minutes: 60
     
@@ -51,7 +51,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('ts/wdio/package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('js/webdriverjs/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
@@ -92,7 +92,7 @@ jobs:
 
       - name: Set environment variables
         run: |
-          echo "WDIO_API_KEY_GIT=${{ secrets.WDIO_API_KEY_GIT || 'c79e09b0-43fc-44a5-aff5-47fb5fe8c21b' }}" >> $GITHUB_ENV
+          echo "WDJS_API_KEY_GIT=${{ secrets.WDJS_API_KEY_GIT || '4ebc4211-b258-490a-9c20-a22cd6aa60ef' }}" >> $GITHUB_ENV
           echo "AXE_PASSWORD=${{ secrets.AXE_PASSWORD || 'Password@123' }}" >> $GITHUB_ENV
           echo "TARGET_ENVIRONMENT=${{ secrets.TARGET_ENVIRONMENT || 'qa' }}" >> $GITHUB_ENV
           echo "CI=true" >> $GITHUB_ENV
@@ -110,26 +110,26 @@ jobs:
           echo "Checking for test result directories..."
           echo "Current directory: $(pwd)"
           echo ""
-          echo "Checking ts/wdio/allure-results:"
-          if [ -d "ts/wdio/allure-results" ]; then
-            ls -la ts/wdio/allure-results/ | head -20 || echo "Directory exists but listing failed"
-            echo "File count: $(find ts/wdio/allure-results -type f 2>/dev/null | wc -l)"
+          echo "Checking js/webdriverjs/allure-results:"
+          if [ -d "js/webdriverjs/allure-results" ]; then
+            ls -la js/webdriverjs/allure-results/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find js/webdriverjs/allure-results -type f 2>/dev/null | wc -l)"
           else
             echo "allure-results directory not found"
           fi
           echo ""
-          echo "Checking ts/wdio/logs:"
-          if [ -d "ts/wdio/logs" ]; then
-            ls -la ts/wdio/logs/ | head -20 || echo "Directory exists but listing failed"
-            echo "File count: $(find ts/wdio/logs -type f 2>/dev/null | wc -l)"
+          echo "Checking js/webdriverjs/logs:"
+          if [ -d "js/webdriverjs/logs" ]; then
+            ls -la js/webdriverjs/logs/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find js/webdriverjs/logs -type f 2>/dev/null | wc -l)"
           else
             echo "logs directory not found"
           fi
           echo ""
-          echo "Checking ts/wdio/allure-report:"
-          if [ -d "ts/wdio/allure-report" ]; then
-            ls -la ts/wdio/allure-report/ | head -20 || echo "Directory exists but listing failed"
-            echo "File count: $(find ts/wdio/allure-report -type f 2>/dev/null | wc -l)"
+          echo "Checking js/webdriverjs/allure-report:"
+          if [ -d "js/webdriverjs/allure-report" ]; then
+            ls -la js/webdriverjs/allure-report/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find js/webdriverjs/allure-report -type f 2>/dev/null | wc -l)"
           else
             echo "allure-report directory not found"
           fi
@@ -160,8 +160,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: allure-results-wdio
-          path: ts/wdio/allure-results/
+          name: allure-results-webdriverjs
+          path: js/webdriverjs/allure-results/
           retention-days: 30
           if-no-files-found: warn
 
@@ -169,8 +169,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: allure-report-wdio
-          path: ts/wdio/allure-report/
+          name: allure-report-webdriverjs
+          path: js/webdriverjs/allure-report/
           retention-days: 30
           if-no-files-found: warn
 
@@ -178,8 +178,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: logs-wdio
-          path: ts/wdio/logs/
+          name: logs-webdriverjs
+          path: js/webdriverjs/logs/
           retention-days: 30
           if-no-files-found: warn
 

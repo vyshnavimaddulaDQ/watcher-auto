@@ -3,7 +3,9 @@ require('dotenv/config')
 const tokenManager = require('./tokenManager')
 const logger = require('./logger')
 const { testData } = require('../resources/testData')
-const puppeteer = require('puppeteer')
+const { Builder } = require('selenium-webdriver')
+const { Options } = require('selenium-webdriver/chrome')
+const { getChromeBinaryPath } = require('./setup-chrome-chromedriver')
 
 const API_URL = 'https://axe-qa.dequelabs.com/api/axe-watcher'
 
@@ -53,43 +55,68 @@ class AxeWatcherAPI {
     logger.info('🕐 Starting 30 second wait before fetching branches...')
     await this.sleep(30000)
     logger.info('🕐 Wait completed, proceeding with API call...')
-    // Reload the branches page in headless browser instead of waiting
-    logger.info('🔄 Reloading branches page in headless browser...')
+    // Reload the branches page in headless browser using Selenium WebDriver
+    logger.info('🔄 Reloading branches page in headless browser using Selenium WebDriver...')
     const branchesUrl = `https://axe-qa.dequelabs.com/axe-watcher/projects/${projectId}/branches`
     
     let browser = null
     try {
-      browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-dev-shm-usage', '--ignore-certificate-errors', '--ignore-ssl-errors']
-      })
+      const options = new Options()
+      options.addArguments('--headless=new')
+      options.addArguments('--no-sandbox')
+      options.addArguments('--disable-dev-shm-usage')
+      options.addArguments('--ignore-certificate-errors')
+      options.addArguments('--ignore-ssl-errors')
       
-      const page = await browser.newPage()
+      const chromeBinaryPath = getChromeBinaryPath()
+      if (chromeBinaryPath) {
+        options.setBinaryPath(chromeBinaryPath)
+      }
       
-      // Set viewport
-      await page.setViewport({ width: 1920, height: 1080 })
+      browser = await new Builder()
+        .forBrowser('chrome')
+        .setChromeOptions(options)
+        .build()
       
-      // Navigate to branches page with timeout set to meet max 120s requirement
+      // Set window size
+      await browser.manage().window().setRect({ width: 1920, height: 1080 })
+      
+      // Navigate to branches page
       logger.info(`📍 Navigating to: ${branchesUrl}`)
-      await page.goto(branchesUrl, { waitUntil: 'load', timeout: 10000 })
+      await browser.get(branchesUrl)
+      
+      // Wait for page to load
+      await browser.wait(async () => {
+        const state = await browser.executeScript('return document.readyState')
+        return state === 'complete'
+      }, 10000)
       
       // Wait a bit for page to be fully interactive
-      await page.waitForTimeout(2000)
+      await browser.sleep(2000)
       
       // Reload the page to trigger any processing
       logger.info('🔄 Reloading page...')
-      await page.reload({ waitUntil: 'load', timeout: 8000 })
+      await browser.navigate().refresh()
+      
+      // Wait for page to load after reload
+      await browser.wait(async () => {
+        const state = await browser.executeScript('return document.readyState')
+        return state === 'complete'
+      }, 8000)
       
       // Wait a bit for any async operations to complete after reload
-      await page.waitForTimeout(2000)
+      await browser.sleep(2000)
       
-      await page.close()
       logger.info('✅ Page reload completed, proceeding with API call...')
     } catch (error) {
       logger.warn(`⚠️ Failed to reload page: ${error.message}. Continuing with API call...`)
     } finally {
       if (browser) {
-        await browser.close()
+        try {
+          await browser.quit()
+        } catch (error) {
+          logger.warn(`⚠️ Error closing browser: ${error.message}`)
+        }
       }
     }
     

@@ -4,6 +4,25 @@ import path from 'path';
 import os from 'os';
 
 /**
+ * Gets the project root directory by looking for common markers
+ * @returns Project root path
+ */
+function getProjectRoot(): string {
+  let currentDir = __dirname;
+  while (currentDir !== path.dirname(currentDir)) {
+    // Look for .git directory or package.json at root level
+    if (fs.existsSync(path.join(currentDir, '.git')) || 
+        (fs.existsSync(path.join(currentDir, 'package.json')) && 
+         (fs.existsSync(path.join(currentDir, 'ts')) || fs.existsSync(path.join(currentDir, 'js'))))) {
+      return currentDir;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+  // Fallback to process.cwd() if we can't find project root
+  return process.cwd();
+}
+
+/**
  * Gets the Chrome binary path
  * Checks CHROME_BIN environment variable first, then looks for Chrome for Testing
  * @returns Path to Chrome binary
@@ -15,59 +34,39 @@ export function getChromeBinaryPath(): string | undefined {
   }
 
   const platform = os.platform();
-  const arch = os.arch();
+  const projectRoot = getProjectRoot();
 
   // Look for Chrome for Testing in common locations
+  // NOTE: We do NOT fall back to system Chrome as it may be v139+ which is not supported
   if (platform === 'darwin') {
     // macOS
-    const chromePath = path.join(process.cwd(), 'chrome', `mac_arm-${getChromeVersion()}`, 'chrome-mac-arm64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing');
+    const chromePath = path.join(projectRoot, 'chrome', `mac_arm-${getChromeVersion()}`, 'chrome-mac-arm64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing');
     if (fs.existsSync(chromePath)) {
       return chromePath;
     }
     
-    // Try system Chrome
-    const systemChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-    if (fs.existsSync(systemChrome)) {
-      return systemChrome;
+    // Also check for mac_x64 architecture
+    const chromePathX64 = path.join(projectRoot, 'chrome', `mac_x64-${getChromeVersion()}`, 'chrome-mac-x64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing');
+    if (fs.existsSync(chromePathX64)) {
+      return chromePathX64;
     }
   } else if (platform === 'linux') {
     // Linux
-    const chromePath = path.join(process.cwd(), 'chrome', `linux-${getChromeVersion()}`, 'chrome-linux64', 'chrome');
+    const chromePath = path.join(projectRoot, 'chrome', `linux-${getChromeVersion()}`, 'chrome-linux64', 'chrome');
     if (fs.existsSync(chromePath)) {
       return chromePath;
-    }
-    
-    // Try system Chrome
-    const systemChromePaths = [
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium'
-    ];
-    for (const chromePath of systemChromePaths) {
-      if (fs.existsSync(chromePath)) {
-        return chromePath;
-      }
     }
   } else if (platform === 'win32') {
     // Windows
-    const chromePath = path.join(process.cwd(), 'chrome', `win64-${getChromeVersion()}`, 'chrome-win64', 'chrome.exe');
+    const chromePath = path.join(projectRoot, 'chrome', `win64-${getChromeVersion()}`, 'chrome-win64', 'chrome.exe');
     if (fs.existsSync(chromePath)) {
       return chromePath;
     }
-    
-    // Try system Chrome
-    const systemChromePaths = [
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
-    ];
-    for (const chromePath of systemChromePaths) {
-      if (fs.existsSync(chromePath)) {
-        return chromePath;
-      }
-    }
   }
 
-  // Return undefined if not found (will use default Chrome)
+  // Return undefined if Chrome for Testing not found
+  // Do NOT fall back to system Chrome as it may be v139+ which is not supported
+  console.warn('⚠️ Chrome for Testing not found. Please install Chrome for Testing or set CHROME_BIN environment variable.');
   return undefined;
 }
 
@@ -83,17 +82,24 @@ export function getChromedriverBinaryPath(): string | undefined {
   }
 
   const platform = os.platform();
+  const projectRoot = getProjectRoot();
 
   // Look for ChromeDriver in common locations
   if (platform === 'darwin') {
     // macOS
-    const chromedriverPath = path.join(process.cwd(), 'chrome', `mac_arm-${getChromeVersion()}`, 'chromedriver-mac-arm64', 'chromedriver');
+    const chromedriverPath = path.join(projectRoot, 'chrome', `mac_arm-${getChromeVersion()}`, 'chromedriver-mac-arm64', 'chromedriver');
     if (fs.existsSync(chromedriverPath)) {
       return chromedriverPath;
     }
+    
+    // Also check for mac_x64 architecture
+    const chromedriverPathX64 = path.join(projectRoot, 'chrome', `mac_x64-${getChromeVersion()}`, 'chromedriver-mac-x64', 'chromedriver');
+    if (fs.existsSync(chromedriverPathX64)) {
+      return chromedriverPathX64;
+    }
   } else if (platform === 'linux') {
     // Linux
-    const chromedriverPath = path.join(process.cwd(), 'chrome', `linux-${getChromeVersion()}`, 'chromedriver-linux64', 'chromedriver');
+    const chromedriverPath = path.join(projectRoot, 'chrome', `linux-${getChromeVersion()}`, 'chromedriver-linux64', 'chromedriver');
     if (fs.existsSync(chromedriverPath)) {
       return chromedriverPath;
     }
@@ -105,7 +111,7 @@ export function getChromedriverBinaryPath(): string | undefined {
     }
   } else if (platform === 'win32') {
     // Windows
-    const chromedriverPath = path.join(process.cwd(), 'chrome', `win64-${getChromeVersion()}`, 'chromedriver-win64', 'chromedriver.exe');
+    const chromedriverPath = path.join(projectRoot, 'chrome', `win64-${getChromeVersion()}`, 'chromedriver-win64', 'chromedriver.exe');
     if (fs.existsSync(chromedriverPath)) {
       return chromedriverPath;
     }
@@ -121,7 +127,8 @@ export function getChromedriverBinaryPath(): string | undefined {
  */
 function getChromeVersion(): string {
   try {
-    const chromeDir = path.join(process.cwd(), 'chrome');
+    const projectRoot = getProjectRoot();
+    const chromeDir = path.join(projectRoot, 'chrome');
     if (fs.existsSync(chromeDir)) {
       const entries = fs.readdirSync(chromeDir);
       for (const entry of entries) {
@@ -139,4 +146,3 @@ function getChromeVersion(): string {
   // Return default version if not found
   return '142.0.7444.162';
 }
-
