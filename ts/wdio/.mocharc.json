@@ -1,0 +1,9 @@
+{
+  "reporter": "mocha-allure-reporter",
+  "reporter-option": [
+    "resultsDir=allure-results"
+  ],
+  "require": ["ts-node/register", "tsconfig-paths/register"],
+  "extension": ["ts", "js"],
+  "timeout": 30000
+}
