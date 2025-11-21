@@ -1,0 +1,236 @@
+name: WebdriverIO Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish-slack:
+        description: 'Publish report and send Slack notification'
+        required: false
+        default: 'false'
+        type: boolean
+      slack-channel:
+        description: 'Slack channel ID for notification'
+        required: false
+        default: ''
+        type: string
+      framework:
+        description: 'Test framework name'
+        required: false
+        default: 'WebdriverIO'
+        type: string
+      watcher-version:
+        description: 'Watcher version used'
+        required: false
+        default: ''
+        type: string
+
+env:
+  NODE_VERSION: '22'
+  WORKING_DIRECTORY: './ts/wdio'
+
+jobs:
+  wdio-tests:
+    name: Run All WebdriverIO Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('ts/wdio/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Setup Java
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-jre
+
+      - name: Create directories
+        run: |
+          mkdir -p logs allure-results
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git config --global init.defaultBranch main
+        continue-on-error: true
+
+      - name: Set environment variables
+        run: |
+          echo "WDIO_API_KEY_GIT=${{ secrets.WDIO_API_KEY_GIT || 'c79e09b0-43fc-44a5-aff5-47fb5fe8c21b' }}" >> $GITHUB_ENV
+          echo "AXE_PASSWORD=${{ secrets.AXE_PASSWORD || 'Password@123' }}" >> $GITHUB_ENV
+          echo "TARGET_ENVIRONMENT=${{ secrets.TARGET_ENVIRONMENT || 'qa' }}" >> $GITHUB_ENV
+          echo "CI=true" >> $GITHUB_ENV
+
+      - name: Run all tests
+        id: test-all
+        timeout-minutes: 60
+        continue-on-error: true
+        run: |
+          npm run test-all && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failure" >> $GITHUB_OUTPUT
+
+      - name: Verify test results directories
+        if: always()
+        run: |
+          echo "Checking for test result directories..."
+          echo "Current directory: $(pwd)"
+          echo ""
+          echo "Checking ts/wdio/allure-results:"
+          if [ -d "ts/wdio/allure-results" ]; then
+            ls -la ts/wdio/allure-results/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find ts/wdio/allure-results -type f 2>/dev/null | wc -l)"
+          else
+            echo "allure-results directory not found"
+          fi
+          echo ""
+          echo "Checking ts/wdio/logs:"
+          if [ -d "ts/wdio/logs" ]; then
+            ls -la ts/wdio/logs/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find ts/wdio/logs -type f 2>/dev/null | wc -l)"
+          else
+            echo "logs directory not found"
+          fi
+          echo ""
+          echo "Checking ts/wdio/allure-report:"
+          if [ -d "ts/wdio/allure-report" ]; then
+            ls -la ts/wdio/allure-report/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find ts/wdio/allure-report -type f 2>/dev/null | wc -l)"
+          else
+            echo "allure-report directory not found"
+          fi
+
+      - name: Setup Allure
+        if: always()
+        run: |
+          wget -qO- https://github.com/allure-framework/allure2/releases/download/2.34.1/allure-2.34.1.tgz | tar -xz
+          sudo mv allure-2.34.1 /opt/allure
+          sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure
+
+      - name: Generate Allure Report
+        if: always()
+        run: |
+          # Check if allure-results directory exists and has files
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results 2>/dev/null)" ]; then
+            echo "Generating Allure report from allure-results..."
+            allure generate allure-results -o allure-report --clean
+            echo "Allure report generated successfully"
+          else
+            echo "No test results found in allure-results directory"
+            echo "Creating empty allure-report directory"
+            mkdir -p allure-report
+          fi
+        continue-on-error: true
+
+      - name: Upload Allure Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-results-wdio
+          path: ts/wdio/allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure HTML Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-report-wdio
+          path: ts/wdio/allure-report/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-wdio
+          path: ts/wdio/logs/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Load test report history
+        uses: actions/checkout@v4
+        if: always()
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Build test report
+        if: always()
+        run: |
+          # Change to working directory
+          cd ${{ env.WORKING_DIRECTORY }}
+          
+          # Create allure-history directory if it doesn't exist
+          mkdir -p ../allure-history
+          
+          # Copy existing history if it exists
+          if [ -d "../gh-pages/allure-history" ]; then
+            cp -r ../gh-pages/allure-history/* ../allure-history/ || true
+          fi
+          
+          # Generate new Allure report if results exist
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results 2>/dev/null)" ]; then
+            allure generate allure-results -o allure-report --clean
+            
+            # Copy new report to history
+            timestamp=$(date +%Y%m%d_%H%M%S)
+            mkdir -p "../allure-history/$timestamp"
+            cp -r allure-report/* "../allure-history/$timestamp/" || true
+            
+            # Create index.html that redirects to latest report
+            echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url='$timestamp'/index.html"></head></html>' > ../allure-history/index.html
+          else
+            echo "No test results found, skipping report generation"
+          fi
+        continue-on-error: true
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+      - name: Publish test report
+        uses: peaceiris/actions-gh-pages@v4
+        if: ${{ always() && github.event.inputs.publish-slack == 'true' }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: allure-history
+          force_orphan: false
+
+      - name: Notify on Slack
+        uses: slackapi/slack-github-action@v1.26
+        if: ${{ always() && github.event.inputs.publish-slack == 'true' }}
+        with:
+          channel-id: ${{ github.event.inputs.slack-channel }}
+          slack-message: |
+            ${{ job.status == 'success' && '✅ *Automation Regression Passed*' || '❌ *Automation Regression Failed*' }}
+             • *Platform:* `${{ github.event.inputs.framework }}`
+             • *Status:* `${{ job.status }}`
+             • *Watcher Version:* `${{ github.event.inputs.watcher-version }}`
+             📊 <https://dequelabs.github.io/qa-axe-watcher-daf/|View Allure Report>
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
