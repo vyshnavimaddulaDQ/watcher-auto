@@ -82,6 +82,18 @@ jobs:
                 name: 'Puppeteer',
                 artifactName: 'allure-results-puppeteer',
                 path: 'js/puppeteer/allure-results'
+              },
+              { 
+                id: 'wdio-tests.yml', 
+                name: 'WebdriverIO',
+                artifactName: 'allure-results-wdio',
+                path: 'ts/wdio/allure-results'
+              },
+              { 
+                id: 'webdriverjs-tests.yml', 
+                name: 'WebdriverJS',
+                artifactName: 'allure-results-webdriverjs',
+                path: 'js/webdriverjs/allure-results'
               }
             ];
             
@@ -219,6 +231,8 @@ jobs:
             core.setOutput('playwright-run-id', workflowRunIds['playwright-tests.yml'] || '');
             core.setOutput('playwrighttest-run-id', workflowRunIds['playwrighttest-tests.yml'] || '');
             core.setOutput('puppeteer-run-id', workflowRunIds['puppeteer-tests.yml'] || '');
+            core.setOutput('wdio-run-id', workflowRunIds['wdio-tests.yml'] || '');
+            core.setOutput('webdriverjs-run-id', workflowRunIds['webdriverjs-tests.yml'] || '');
             core.setOutput('target-branch', targetBranch);
             
             return JSON.stringify(workflowRunIds);
@@ -253,6 +267,20 @@ jobs:
                 artifactName: 'allure-results-puppeteer',
                 runId: '${{ steps.trigger-and-wait.outputs.puppeteer-run-id }}',
                 possiblePaths: ['js/puppeteer/allure-results', 'allure-results', 'js/puppeteer/allure-results/']
+              },
+              { 
+                id: 'wdio-tests.yml', 
+                name: 'WebdriverIO',
+                artifactName: 'allure-results-wdio',
+                runId: '${{ steps.trigger-and-wait.outputs.wdio-run-id }}',
+                possiblePaths: ['ts/wdio/allure-results', 'allure-results', 'ts/wdio/allure-results/']
+              },
+              { 
+                id: 'webdriverjs-tests.yml', 
+                name: 'WebdriverJS',
+                artifactName: 'allure-results-webdriverjs',
+                runId: '${{ steps.trigger-and-wait.outputs.webdriverjs-run-id }}',
+                possiblePaths: ['js/webdriverjs/allure-results', 'allure-results', 'js/webdriverjs/allure-results/']
               }
             ];
             
@@ -507,13 +535,15 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`$BRANCH\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "This regression run includes consolidated results from all three test frameworks:" >> $GITHUB_STEP_SUMMARY
+          echo "This regression run includes consolidated results from all test frameworks:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Framework | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Playwright | ✅ Included |" >> $GITHUB_STEP_SUMMARY
           echo "| PlaywrightTest | ✅ Included |" >> $GITHUB_STEP_SUMMARY
           echo "| Puppeteer | ✅ Included |" >> $GITHUB_STEP_SUMMARY
+          echo "| WebdriverIO | ✅ Included |" >> $GITHUB_STEP_SUMMARY
+          echo "| WebdriverJS | ✅ Included |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
           echo "📊 [View Consolidated Allure Report](https://${{ github.repository_owner }}.github.io/$REPO_NAME/allure-history/)" >> $GITHUB_STEP_SUMMARY
