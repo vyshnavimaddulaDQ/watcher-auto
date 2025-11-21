@@ -3,7 +3,8 @@ import 'dotenv/config';
 import tokenManager from './tokenManager';
 import logger from './logger';
 import { testData } from '../resources/testData';
-import playwright from 'playwright';
+import { remote } from 'webdriverio';
+import type { Capabilities } from '@wdio/types';
 
 const API_URL = 'https://axe-qa.dequelabs.com/api/axe-watcher';
 
@@ -80,52 +81,73 @@ class AxeWatcherAPI {
    * Get branches for a project
    */
   async getBranches(projectId: string, token: string, branch?: string): Promise<Branch[]> {
- // Wait 30 seconds before making the API call to allow API to sync (min 60s total, max 120s total)
- logger.info('🕐 Starting 30 second wait before fetching branches...');
- await this.sleep(30000);
- logger.info('🕐 Wait completed, proceeding with API call...');
-    // Reload the branches page in headless browser instead of waiting
-    logger.info('🔄 Reloading branches page in headless browser...');
+    // Wait 30 seconds before making the API call to allow API to sync (min 60s total, max 120s total)
+    logger.info('🕐 Starting 30 second wait before fetching branches...');
+    await this.sleep(30000);
+    logger.info('🕐 Wait completed, proceeding with API call...');
+    
+    // Reload the branches page in headless browser using WebdriverIO
+    logger.info('🔄 Reloading branches page in headless browser using WebdriverIO...');
     const branchesUrl = `https://axe-qa.dequelabs.com/axe-watcher/projects/${projectId}/branches`;
     
-    let browser: playwright.Browser | null = null;
+    let browser: WebdriverIO.Browser | null = null;
     try {
-      browser = await playwright.chromium.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-dev-shm-usage', '--ignore-certificate-errors', '--ignore-ssl-errors']
-      });
+      browser = await remote({
+        capabilities: {
+          browserName: 'chrome',
+          'goog:chromeOptions': {
+            args: [
+              '--headless=new',
+              '--no-sandbox',
+              '--disable-dev-shm-usage',
+              '--ignore-certificate-errors',
+              '--ignore-ssl-errors'
+            ]
+          }
+        }
+      } as Capabilities.WebdriverIOConfig);
       
-      const context = await browser.newContext({
-        viewport: { width: 1920, height: 1080 }
-      });
-      
-      const page = await context.newPage();
-      
-      // Navigate to branches page with timeout set to meet max 120s requirement
-      logger.info(`📍 Navigating to: ${branchesUrl}`);
-      await page.goto(branchesUrl, { waitUntil: 'load', timeout: 10000 });
-      
-      // Wait for the page to be interactive
-      await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
-      
-      // Reload the page to trigger any processing
-      logger.info('🔄 Reloading page...');
-      await page.reload({ waitUntil: 'load', timeout: 8000 });
-      
-      // Wait for the page to be interactive after reload
-      await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
-      
-      // Wait a bit for any async operations to complete
-      await page.waitForTimeout(2000);
-      
-      await page.close();
-      await context.close();
-      logger.info('✅ Page reload completed, proceeding with API call...');
+      if (browser) {
+        // Set viewport
+        await browser.setWindowSize(1920, 1080);
+        
+        // Navigate to branches page
+        logger.info(`📍 Navigating to: ${branchesUrl}`);
+        await browser.url(branchesUrl);
+        
+        // Wait for page to load
+        await browser.waitUntil(async () => {
+          const state = await browser!.execute(() => document.readyState);
+          return state === 'complete';
+        }, { timeout: 10000 });
+        
+        // Wait a bit for page to be fully interactive
+        await browser.pause(2000);
+        
+        // Reload the page to trigger any processing
+        logger.info('🔄 Reloading page...');
+        await browser.refresh();
+        
+        // Wait for page to load after reload
+        await browser.waitUntil(async () => {
+          const state = await browser!.execute(() => document.readyState);
+          return state === 'complete';
+        }, { timeout: 8000 });
+        
+        // Wait a bit for any async operations to complete after reload
+        await browser.pause(2000);
+        
+        logger.info('✅ Page reload completed, proceeding with API call...');
+      }
     } catch (error: any) {
       logger.warn(`⚠️ Failed to reload page: ${error.message}. Continuing with API call...`);
     } finally {
       if (browser) {
-        await browser.close();
+        try {
+          await browser.deleteSession();
+        } catch (error: any) {
+          logger.warn(`⚠️ Error closing browser: ${error.message}`);
+        }
       }
     }
     
@@ -218,7 +240,7 @@ class AxeWatcherAPI {
    */
   async verifyPagestateIssuesCount(
     testDataKey: string = 'autoAnalyzeMode',
-    projectName: string = 'automation_Playwright Test',
+    projectName: string = 'automation_WebdriverIO',
     branchName?: string
   ): Promise<void> {
     logger.info('========== API Validation Starting ==========');

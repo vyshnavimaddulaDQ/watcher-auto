@@ -1,4 +1,4 @@
-name: Puppeteer Tests
+name: WebdriverJS Tests
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ on:
       framework:
         description: 'Test framework name'
         required: false
-        default: 'Puppeteer'
+        default: 'WebdriverJS'
         type: string
       watcher-version:
         description: 'Watcher version used'
@@ -26,11 +26,11 @@ on:
 
 env:
   NODE_VERSION: '22'
-  WORKING_DIRECTORY: './js/puppeteer'
+  WORKING_DIRECTORY: './js/webdriverjs'
 
 jobs:
-  puppeteer-tests:
-    name: Run All Puppeteer Tests
+  webdriverjs-tests:
+    name: Run All WebdriverJS Tests
     runs-on: ubuntu-latest
     timeout-minutes: 60
     
@@ -51,7 +51,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('js/puppeteer/package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('js/webdriverjs/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
@@ -62,6 +62,17 @@ jobs:
           else
             npm install
           fi
+
+      - name: Install Chrome for Testing
+        id: install-chrome
+        uses: ./.github/actions/install-chrome
+        with:
+          working-directory: ${{ github.workspace }}
+
+      - name: Set Chrome environment variables
+        run: |
+          echo "CHROME_BIN=${{ steps.install-chrome.outputs.chrome-path }}" >> $GITHUB_ENV
+          echo "CHROMEDRIVER_BIN=${{ steps.install-chrome.outputs.chromedriver-path }}" >> $GITHUB_ENV
 
       - name: Setup Java
         run: |
@@ -81,7 +92,7 @@ jobs:
 
       - name: Set environment variables
         run: |
-          echo "PUPPETEER_API_KEY_GIT=${{ secrets.PUPPETEER_API_KEY_GIT || 'fea891a5-938f-40e4-a819-b53806c30d6f' }}" >> $GITHUB_ENV
+          echo "WDJS_API_KEY_GIT=${{ secrets.WDJS_API_KEY_GIT || '4ebc4211-b258-490a-9c20-a22cd6aa60ef' }}" >> $GITHUB_ENV
           echo "AXE_PASSWORD=${{ secrets.AXE_PASSWORD || 'Password@123' }}" >> $GITHUB_ENV
           echo "TARGET_ENVIRONMENT=${{ secrets.TARGET_ENVIRONMENT || 'qa' }}" >> $GITHUB_ENV
           echo "CI=true" >> $GITHUB_ENV
@@ -99,26 +110,26 @@ jobs:
           echo "Checking for test result directories..."
           echo "Current directory: $(pwd)"
           echo ""
-          echo "Checking js/puppeteer/allure-results:"
-          if [ -d "js/puppeteer/allure-results" ]; then
-            ls -la js/puppeteer/allure-results/ | head -20 || echo "Directory exists but listing failed"
-            echo "File count: $(find js/puppeteer/allure-results -type f 2>/dev/null | wc -l)"
+          echo "Checking js/webdriverjs/allure-results:"
+          if [ -d "js/webdriverjs/allure-results" ]; then
+            ls -la js/webdriverjs/allure-results/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find js/webdriverjs/allure-results -type f 2>/dev/null | wc -l)"
           else
             echo "allure-results directory not found"
           fi
           echo ""
-          echo "Checking js/puppeteer/logs:"
-          if [ -d "js/puppeteer/logs" ]; then
-            ls -la js/puppeteer/logs/ | head -20 || echo "Directory exists but listing failed"
-            echo "File count: $(find js/puppeteer/logs -type f 2>/dev/null | wc -l)"
+          echo "Checking js/webdriverjs/logs:"
+          if [ -d "js/webdriverjs/logs" ]; then
+            ls -la js/webdriverjs/logs/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find js/webdriverjs/logs -type f 2>/dev/null | wc -l)"
           else
             echo "logs directory not found"
           fi
           echo ""
-          echo "Checking js/puppeteer/allure-report:"
-          if [ -d "js/puppeteer/allure-report" ]; then
-            ls -la js/puppeteer/allure-report/ | head -20 || echo "Directory exists but listing failed"
-            echo "File count: $(find js/puppeteer/allure-report -type f 2>/dev/null | wc -l)"
+          echo "Checking js/webdriverjs/allure-report:"
+          if [ -d "js/webdriverjs/allure-report" ]; then
+            ls -la js/webdriverjs/allure-report/ | head -20 || echo "Directory exists but listing failed"
+            echo "File count: $(find js/webdriverjs/allure-report -type f 2>/dev/null | wc -l)"
           else
             echo "allure-report directory not found"
           fi
@@ -149,8 +160,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: allure-results-puppeteer
-          path: js/puppeteer/allure-results/
+          name: allure-results-webdriverjs
+          path: js/webdriverjs/allure-results/
           retention-days: 30
           if-no-files-found: warn
 
@@ -158,8 +169,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: allure-report
-          path: js/puppeteer/allure-report/
+          name: allure-report-webdriverjs
+          path: js/webdriverjs/allure-report/
           retention-days: 30
           if-no-files-found: warn
 
@@ -167,8 +178,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: logs
-          path: js/puppeteer/logs/
+          name: logs-webdriverjs
+          path: js/webdriverjs/logs/
           retention-days: 30
           if-no-files-found: warn
 
@@ -233,3 +244,4 @@ jobs:
              📊 <https://dequelabs.github.io/qa-axe-watcher-daf/|View Allure Report>
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+

@@ -3,6 +3,7 @@ import { playwrightTest } from '@axe-core/watcher'
 import 'dotenv/config'
 import { allure } from 'allure-playwright'
 import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI'
+import { createAndSwitchToBranch, getCurrentBranch } from 'utils/gitBranchManager'
 
 const API_KEY: string = process.env.PW_TEST_API_KEY_GIT ?? 'PROVIDE API KEY!'
 const GITHUB_RUN_ID = process.env.GITHUB_RUN_ID
@@ -120,7 +121,16 @@ for (const configObj of excludeURLs) {
   });
  
 }
+
+test.beforeAll(() => {
+  // Create and switch to git branch before running tests
+  createAndSwitchToBranch('playwrighttest_excludeurls')
+  process.env.GIT_BRANCH = 'playwrighttest_excludeurls'
+})
+
 test.afterAll(async () => {
-  await verifyPagestateIssuesCount('excludeUrls', 'automation_Playwright Test')
+  // Get the current git branch name to fetch results from that branch
+  const currentBranch = getCurrentBranch()
+  await verifyPagestateIssuesCount('excludeUrls', 'automation_Playwright Test', currentBranch || undefined)
   
 })

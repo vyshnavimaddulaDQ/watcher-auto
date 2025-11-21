@@ -11,6 +11,7 @@ import {
 } from '@axe-core/watcher';
 import 'dotenv/config';
 import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI';
+import { createAndSwitchToBranch, getCurrentBranch } from 'utils/gitBranchManager';
 
 let page: playwright.Page;
 let browserContext: playwright.BrowserContext;
@@ -158,6 +159,14 @@ const axeConfigurations: {
 ];
 
 describe('Playwright: Axe Watcher with Multiple Configurations', () => {
+  before(async () => {
+    // Create and switch to git branch before running tests
+    // This sets process.env.GIT_BRANCH which will be used by the SDK
+    createAndSwitchToBranch('playwright_axeconfigurations');
+    // Ensure the branch name is available for all configurations
+    process.env.GIT_BRANCH = 'playwright_axeconfigurations';
+  });
+
   axeConfigurations.forEach((configObj) => {
     describe(configObj.description, () => {
       before(async () => {
@@ -198,7 +207,9 @@ describe('Playwright: Axe Watcher with Multiple Configurations', () => {
   
   after(async () => {
     try {
-      await verifyPagestateIssuesCount('axeConfigs', 'automation_Playwright')
+      // Get the current git branch name to fetch results from that branch
+      const currentBranch = getCurrentBranch();
+      await verifyPagestateIssuesCount('axeConfigs', 'automation_Playwright', currentBranch || undefined)
     } catch (error) {
       console.error('Error in API validation:', error)
       throw error

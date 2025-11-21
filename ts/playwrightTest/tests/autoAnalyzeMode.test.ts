@@ -3,6 +3,7 @@ import { playwrightTest } from '@axe-core/watcher'
 import 'dotenv/config'
 import { allure } from 'allure-playwright'
 import { verifyPagestateIssuesCount } from 'utils/axeWatcherAPI'
+import { createAndSwitchToBranch, getCurrentBranch } from 'utils/gitBranchManager'
 
 const API_KEY: string = process.env.PW_TEST_API_KEY_GIT ?? 'PROVIDE API KEY!'
 
@@ -19,6 +20,12 @@ const { test, expect } = playwrightTest({
 export { test, expect }
 
 test.describe('PlaywrightTest: AutoAnalyze Mode Tests Validation', () => {
+  test.beforeAll(() => {
+    // Create and switch to git branch before running tests
+    createAndSwitchToBranch('playwrighttest_autoanalyzemode')
+    process.env.GIT_BRANCH = 'playwrighttest_autoanalyzemode'
+  })
+
   test.beforeEach(() => {
     allure.suite('PlaywrightTest: AutoAnalyze Mode Tests Validation')
   })
@@ -86,7 +93,9 @@ test.describe('PlaywrightTest: AutoAnalyze Mode Tests Validation', () => {
   })
 
   test.afterAll(async () => {
-    await verifyPagestateIssuesCount('autoAnalyzeMode', 'automation_Playwright Test')
+    // Get the current git branch name to fetch results from that branch
+    const currentBranch = getCurrentBranch()
+    await verifyPagestateIssuesCount('autoAnalyzeMode', 'automation_Playwright Test', currentBranch || undefined)
     
   })
 })

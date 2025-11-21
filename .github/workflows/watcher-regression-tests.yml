@@ -2,6 +2,27 @@ name: Watcher Regression Tests
 
 on:
   workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run tests on'
+        required: false
+        default: ''
+        type: string
+      publish-slack:
+        description: 'Publish report and send Slack notification'
+        required: false
+        default: 'false'
+        type: boolean
+      slack-channel:
+        description: 'Slack channel ID for notification'
+        required: false
+        default: ''
+        type: string
+      watcher-version:
+        description: 'Watcher version used'
+        required: false
+        default: ''
+        type: string
 
 env:
   NODE_VERSION: '22'
@@ -12,96 +33,171 @@ permissions:
   pull-requests: read
 
 jobs:
-  trigger-workflows:
-    name: Trigger All Watcher Test Workflows
+  regression-tests:
+    name: Run Regression Tests and Generate Consolidated Report
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Trigger Playwright Tests
-        uses: actions/github-script@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          script: |
-            const response = await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'playwright-tests.yml',
-              ref: context.ref === 'refs/heads/pupp' ? 'pupp' : 'main'
-            });
-            console.log('Triggered Playwright Tests workflow');
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Trigger PlaywrightTest Tests
+      - name: Trigger Workflows and Wait for Completion
         uses: actions/github-script@v7
+        id: trigger-and-wait
         with:
           script: |
-            const response = await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'playwrighttest-tests.yml',
-              ref: context.ref === 'refs/heads/pupp' ? 'pupp' : 'main'
-            });
-            console.log('Triggered PlaywrightTest Tests workflow');
-
-      - name: Trigger Puppeteer Tests
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const response = await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'puppeteer-tests.yml',
-              ref: context.ref === 'refs/heads/pupp' ? 'pupp' : 'main'
-            });
-            console.log('Triggered Puppeteer Tests workflow');
-
-      - name: Wait for workflows to complete
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const core = require('@actions/core');
-            
             function sleep(ms) {
               return new Promise(resolve => setTimeout(resolve, ms));
             }
             
-            // Wait a bit for workflows to start
-            await sleep(30000);
+            // Determine branch to use: input branch, or current branch, or default to main
+            const inputBranch = '${{ github.event.inputs.branch }}';
+            const currentRef = context.ref;
+            const currentBranch = currentRef.replace('refs/heads/', '');
+            const targetBranch = inputBranch || currentBranch || 'main';
+            
+            console.log(`Target branch for all workflows: ${targetBranch}`);
             
             const workflows = [
-              'playwright-tests.yml',
-              'playwrighttest-tests.yml',
-              'puppeteer-tests.yml'
+              { 
+                id: 'playwright-tests.yml', 
+                name: 'Playwright',
+                artifactName: 'allure-results-playwright',
+                path: 'ts/playwright/allure-results'
+              },
+              { 
+                id: 'playwrighttest-tests.yml', 
+                name: 'PlaywrightTest',
+                artifactName: 'allure-results-playwrighttest',
+                path: 'ts/playwrightTest/allure-results'
+              },
+              { 
+                id: 'puppeteer-tests.yml', 
+                name: 'Puppeteer',
+                artifactName: 'allure-results-puppeteer',
+                path: 'js/puppeteer/allure-results'
+              }
             ];
             
+            const workflowRunIds = {};
+            
+            // Trigger all workflows
+            for (const workflow of workflows) {
+              console.log(`Triggering ${workflow.name} Tests on branch: ${targetBranch}`);
+              
+              const response = await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: workflow.id,
+                ref: targetBranch,
+                inputs: {
+                  'publish-slack': '${{ github.event.inputs.publish-slack }}',
+                  'slack-channel': '${{ github.event.inputs.slack-channel }}',
+                  'framework': workflow.name,
+                  'watcher-version': '${{ github.event.inputs.watcher-version }}'
+                }
+              });
+              
+              console.log(`Triggered ${workflow.name} Tests workflow`);
+            }
+            
+            // Wait a bit for workflows to start and capture run IDs
+            console.log('Waiting 30 seconds for workflows to start...');
+            await sleep(30000);
+            
+            // First, capture the run IDs for all triggered workflows
+            const triggerTime = new Date();
+            let allRunIdsFound = false;
+            let findAttempts = 0;
+            const maxFindAttempts = 10; // 10 minutes to find run IDs
+            
+            while (!allRunIdsFound && findAttempts < maxFindAttempts) {
+              allRunIdsFound = true;
+              
+              for (const workflow of workflows) {
+                if (!workflowRunIds[workflow.id]) {
+                  const runs = await github.rest.actions.listWorkflowRuns({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    workflow_id: workflow.id,
+                    branch: targetBranch,
+                    per_page: 10
+                  });
+                  
+                  if (runs.data.workflow_runs.length > 0) {
+                    // Find the most recent run that was created after we triggered (within last 10 minutes)
+                    const recentRuns = runs.data.workflow_runs.filter(run => {
+                      const runTime = new Date(run.created_at);
+                      const timeDiff = triggerTime - runTime;
+                      return timeDiff >= -60000 && timeDiff < 10 * 60 * 1000; // Within 10 minutes of trigger
+                    });
+                    
+                    if (recentRuns.length > 0) {
+                      // Get the most recent one
+                      const run = recentRuns.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+                      workflowRunIds[workflow.id] = run.id;
+                      console.log(`✅ Found ${workflow.name} run ID: ${run.id} (created at ${run.created_at})`);
+                    } else {
+                      allRunIdsFound = false;
+                    }
+                  } else {
+                    allRunIdsFound = false;
+                  }
+                }
+              }
+              
+              if (!allRunIdsFound) {
+                console.log(`Waiting for workflow run IDs to appear... (attempt ${findAttempts + 1}/${maxFindAttempts})`);
+                await sleep(60000); // Wait 1 minute
+                findAttempts++;
+              }
+            }
+            
+            if (!allRunIdsFound) {
+              core.warning('Could not find all workflow run IDs. Will try to proceed with found IDs.');
+            }
+            
+            // Now wait for all workflows to complete using the captured run IDs
             let allComplete = false;
             let attempts = 0;
-            const maxAttempts = 60; // 60 minutes max wait time
+            const maxAttempts = 90; // 90 minutes max wait time
             
             while (!allComplete && attempts < maxAttempts) {
               allComplete = true;
               
               for (const workflow of workflows) {
-                const runs = await github.rest.actions.listWorkflowRuns({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  workflow_id: workflow,
-                  per_page: 1
-                });
+                const runId = workflowRunIds[workflow.id];
                 
-                if (runs.data.workflow_runs.length > 0) {
-                  const run = runs.data.workflow_runs[0];
-                  const status = run.status;
-                  const conclusion = run.conclusion;
-                  
-                  console.log(`${workflow}: status=${status}, conclusion=${conclusion}`);
-                  
-                  if (status !== 'completed') {
+                if (runId) {
+                  try {
+                    // Get the specific run by ID
+                    const run = await github.rest.actions.getWorkflowRun({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      run_id: runId
+                    });
+                    
+                    const status = run.data.status;
+                    const conclusion = run.data.conclusion;
+                    
+                    console.log(`${workflow.name} (run ${runId}): status=${status}, conclusion=${conclusion || 'null'}`);
+                    
+                    if (status !== 'completed') {
+                      allComplete = false;
+                    }
+                  } catch (error) {
+                    console.log(`Error checking ${workflow.name} run ${runId}: ${error.message}`);
                     allComplete = false;
                   }
                 } else {
+                  console.log(`⚠️ No run ID found for ${workflow.name}, skipping...`);
+                  // If we don't have a run ID, we can't check it, so consider it incomplete
                   allComplete = false;
                 }
               }
@@ -115,24 +211,19 @@ jobs:
             
             if (!allComplete) {
               core.warning('Some workflows did not complete within the timeout period');
+            } else {
+              console.log('✅ All workflows completed successfully!');
             }
+            
+            // Output workflow run IDs for artifact download
+            core.setOutput('playwright-run-id', workflowRunIds['playwright-tests.yml'] || '');
+            core.setOutput('playwrighttest-run-id', workflowRunIds['playwrighttest-tests.yml'] || '');
+            core.setOutput('puppeteer-run-id', workflowRunIds['puppeteer-tests.yml'] || '');
+            core.setOutput('target-branch', targetBranch);
+            
+            return JSON.stringify(workflowRunIds);
 
-  collect-results:
-    name: Collect and Combine Allure Results
-    runs-on: ubuntu-latest
-    needs: trigger-workflows
-    if: always()
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Get Workflow Run IDs and Download Artifacts
+      - name: Download and Merge Allure Results
         uses: actions/github-script@v7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -142,106 +233,192 @@ jobs:
             const { execSync } = require('child_process');
             
             const workflows = [
-              { id: 'playwright-tests.yml', artifactName: 'allure-results-playwright', path: 'artifacts/playwright' },
-              { id: 'playwrighttest-tests.yml', artifactName: 'allure-results-playwrighttest', path: 'artifacts/playwrighttest' },
-              { id: 'puppeteer-tests.yml', artifactName: 'allure-results', path: 'artifacts/puppeteer' }
+              { 
+                id: 'playwright-tests.yml', 
+                name: 'Playwright',
+                artifactName: 'allure-results-playwright',
+                runId: '${{ steps.trigger-and-wait.outputs.playwright-run-id }}',
+                possiblePaths: ['ts/playwright/allure-results', 'allure-results', 'ts/playwright/allure-results/']
+              },
+              { 
+                id: 'playwrighttest-tests.yml', 
+                name: 'PlaywrightTest',
+                artifactName: 'allure-results-playwrighttest',
+                runId: '${{ steps.trigger-and-wait.outputs.playwrighttest-run-id }}',
+                possiblePaths: ['ts/playwrightTest/allure-results', 'allure-results', 'ts/playwrightTest/allure-results/']
+              },
+              { 
+                id: 'puppeteer-tests.yml', 
+                name: 'Puppeteer',
+                artifactName: 'allure-results-puppeteer',
+                runId: '${{ steps.trigger-and-wait.outputs.puppeteer-run-id }}',
+                possiblePaths: ['js/puppeteer/allure-results', 'allure-results', 'js/puppeteer/allure-results/']
+              }
             ];
+            
+            // Create master allure-results directory
+            const masterResultsDir = 'master-allure-results';
+            fs.mkdirSync(masterResultsDir, { recursive: true });
             
             for (const workflow of workflows) {
               try {
-                // Get the latest workflow run
-                const runs = await github.rest.actions.listWorkflowRuns({
+                if (!workflow.runId || workflow.runId === '') {
+                  console.log(`No run ID found for ${workflow.name}, skipping...`);
+                  continue;
+                }
+                
+                console.log(`Downloading artifacts for ${workflow.name} from run ${workflow.runId}`);
+                
+                // List artifacts for this run
+                const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  workflow_id: workflow.id,
-                  per_page: 1
+                  run_id: parseInt(workflow.runId)
                 });
                 
-                if (runs.data.workflow_runs.length > 0) {
-                  const runId = runs.data.workflow_runs[0].id;
-                  console.log(`Found ${workflow.id} run ID: ${runId}`);
+                console.log(`Available artifacts for ${workflow.name}:`, artifacts.data.artifacts.map(a => a.name).join(', '));
+                
+                // Find the matching artifact
+                const artifact = artifacts.data.artifacts.find(a => a.name === workflow.artifactName);
+                
+                if (artifact) {
+                  console.log(`Found artifact ${artifact.name}, downloading...`);
                   
-                  // List artifacts for this run
-                  const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    run_id: runId
-                  });
+                  // Create temp directory for this workflow's artifacts
+                  const tempDir = `temp-${workflow.name.toLowerCase()}`;
+                  fs.mkdirSync(tempDir, { recursive: true });
+                  const zipPath = `${tempDir}.zip`;
                   
-                  // Find the matching artifact
-                  const artifact = artifacts.data.artifacts.find(a => a.name === workflow.artifactName);
+                  // Use curl to download artifact
+                  const apiUrl = `https://api.github.com/repos/${context.repo.owner}/${context.repo.repo}/actions/artifacts/${artifact.id}/zip`;
+                  execSync(`curl -L -H "Authorization: token ${process.env.GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "${apiUrl}" -o "${zipPath}" || true`);
                   
-                  if (artifact) {
-                    console.log(`Downloading artifact ${artifact.name} from run ${runId}`);
-                    
-                    // Create directory
-                    fs.mkdirSync(workflow.path, { recursive: true });
-                    const zipPath = `${workflow.path}.zip`;
-                    
-                    // Use curl to download artifact (GitHub API returns a redirect)
-                    const apiUrl = `https://api.github.com/repos/${context.repo.owner}/${context.repo.repo}/actions/artifacts/${artifact.id}/zip`;
-                    execSync(`curl -L -H "Authorization: token ${process.env.GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "${apiUrl}" -o "${zipPath}" || true`);
-                    
-                    // Extract zip file
-                    execSync(`unzip -q -o ${zipPath} -d ${workflow.path} || true`);
-                    execSync(`rm -f ${zipPath} || true`);
-                    console.log(`Downloaded and extracted ${workflow.artifactName}`);
-                  } else {
-                    console.log(`Artifact ${workflow.artifactName} not found for ${workflow.id}`);
+                  // Extract zip file
+                  execSync(`unzip -q -o ${zipPath} -d ${tempDir} || true`);
+                  execSync(`rm -f ${zipPath} || true`);
+                  
+                  // Debug: List what's in the extracted directory
+                  console.log(`Contents of ${tempDir}:`);
+                  try {
+                    const listFiles = (dir, prefix = '') => {
+                      const items = fs.readdirSync(dir);
+                      items.forEach(item => {
+                        const fullPath = `${dir}/${item}`;
+                        const stat = fs.statSync(fullPath);
+                        console.log(`${prefix}${item}${stat.isDirectory() ? '/' : ''}`);
+                        if (stat.isDirectory()) {
+                          listFiles(fullPath, prefix + '  ');
+                        }
+                      });
+                    };
+                    listFiles(tempDir);
+                  } catch (e) {
+                    console.log(`Error listing files: ${e.message}`);
                   }
+                  
+                  // Try to find allure-results directory in various possible locations
+                  let sourceDir = null;
+                  for (const possiblePath of workflow.possiblePaths) {
+                    const testPath = `${tempDir}/${possiblePath}`;
+                    if (fs.existsSync(testPath) && fs.statSync(testPath).isDirectory()) {
+                      sourceDir = testPath;
+                      console.log(`Found allure-results at: ${possiblePath}`);
+                      break;
+                    }
+                  }
+                  
+                  // If not found in expected paths, search recursively for allure-results directory
+                  if (!sourceDir) {
+                    console.log(`Searching for allure-results directory recursively...`);
+                    const findAllureResults = (dir) => {
+                      try {
+                        const items = fs.readdirSync(dir);
+                        for (const item of items) {
+                          const fullPath = `${dir}/${item}`;
+                          if (fs.statSync(fullPath).isDirectory()) {
+                            if (item === 'allure-results') {
+                              return fullPath;
+                            }
+                            const found = findAllureResults(fullPath);
+                            if (found) return found;
+                          }
+                        }
+                      } catch (e) {
+                        // Ignore errors
+                      }
+                      return null;
+                    };
+                    sourceDir = findAllureResults(tempDir);
+                    if (sourceDir) {
+                      console.log(`Found allure-results recursively at: ${sourceDir}`);
+                    }
+                  }
+                  
+                  // If still not found, check if files are directly in temp directory (artifact structure)
+                  if (!sourceDir) {
+                    console.log(`Checking if files are directly in temp directory...`);
+                    try {
+                      const items = fs.readdirSync(tempDir);
+                      // Check if there are JSON files (allure-results files are JSON)
+                      const jsonFiles = items.filter(item => {
+                        const fullPath = `${tempDir}/${item}`;
+                        return fs.statSync(fullPath).isFile() && (item.endsWith('.json') || item.endsWith('.txt') || item.endsWith('.xml'));
+                      });
+                      
+                      if (jsonFiles.length > 0) {
+                        // Files are directly in temp directory, use it as source
+                        sourceDir = tempDir;
+                        console.log(`Found ${jsonFiles.length} allure result files directly in temp directory`);
+                      }
+                    } catch (e) {
+                      console.log(`Error checking temp directory: ${e.message}`);
+                    }
+                  }
+                  
+                  if (sourceDir && fs.existsSync(sourceDir)) {
+                    const files = fs.readdirSync(sourceDir);
+                    // Filter to only copy actual result files (not directories or zip files)
+                    const resultFiles = files.filter(file => {
+                      const fullPath = `${sourceDir}/${file}`;
+                      return fs.statSync(fullPath).isFile() && 
+                             (file.endsWith('.json') || file.endsWith('.txt') || file.endsWith('.xml') || file.endsWith('.properties'));
+                    });
+                    
+                    if (resultFiles.length > 0) {
+                      console.log(`Copying ${resultFiles.length} result files from ${workflow.name} to master-allure-results`);
+                      // Copy files individually to avoid copying unwanted files
+                      resultFiles.forEach(file => {
+                        try {
+                          fs.copyFileSync(`${sourceDir}/${file}`, `${masterResultsDir}/${file}`);
+                        } catch (e) {
+                          console.log(`Warning: Could not copy ${file}: ${e.message}`);
+                        }
+                      });
+                      console.log(`✅ Successfully merged ${workflow.name} results`);
+                    } else {
+                      console.log(`⚠️ No result files found in ${sourceDir}`);
+                    }
+                  } else {
+                    console.log(`⚠️ Could not find allure-results directory or files in artifact for ${workflow.name}`);
+                  }
+                  
+                  // Clean up temp directory
+                  execSync(`rm -rf ${tempDir} || true`);
                 } else {
-                  console.log(`No runs found for ${workflow.id}`);
+                  console.log(`⚠️ Artifact ${workflow.artifactName} not found for ${workflow.name}`);
+                  console.log(`Available artifacts: ${artifacts.data.artifacts.map(a => a.name).join(', ')}`);
                 }
               } catch (error) {
-                console.log(`Error downloading artifacts for ${workflow.id}: ${error.message}`);
+                console.log(`❌ Error downloading artifacts for ${workflow.name}: ${error.message}`);
+                console.log(error.stack);
               }
             }
-
-      - name: Merge Allure Results
-        run: |
-          mkdir -p combined-allure-results
-          
-          # Copy results from each framework
-          if [ -d "artifacts/playwright/ts/playwright/allure-results" ] && [ -n "$(ls -A artifacts/playwright/ts/playwright/allure-results 2>/dev/null)" ]; then
-            echo "Merging results from Playwright"
-            cp -r artifacts/playwright/ts/playwright/allure-results/* combined-allure-results/ || true
-          fi
-          
-          if [ -d "artifacts/playwrighttest/ts/playwrightTest/allure-results" ] && [ -n "$(ls -A artifacts/playwrighttest/ts/playwrightTest/allure-results 2>/dev/null)" ]; then
-            echo "Merging results from PlaywrightTest"
-            cp -r artifacts/playwrighttest/ts/playwrightTest/allure-results/* combined-allure-results/ || true
-          fi
-          
-          if [ -d "artifacts/puppeteer/js/puppeteer/allure-results" ] && [ -n "$(ls -A artifacts/puppeteer/js/puppeteer/allure-results 2>/dev/null)" ]; then
-            echo "Merging results from Puppeteer"
-            cp -r artifacts/puppeteer/js/puppeteer/allure-results/* combined-allure-results/ || true
-          fi
-          
-          echo "Total files in combined report: $(ls -1 combined-allure-results 2>/dev/null | wc -l)"
-
-      - name: Upload Combined Allure Results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: combined-allure-results
-          path: combined-allure-results/
-          retention-days: 30
-
-  publish-report:
-    name: Publish Combined Allure Report
-    runs-on: ubuntu-latest
-    needs: collect-results
-    if: always()
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download Combined Allure Results
-        uses: actions/download-artifact@v4
-        with:
-          name: combined-allure-results
-          path: combined-allure-results
+            
+            // Count total files in master directory
+            const fileCount = fs.existsSync(masterResultsDir) 
+              ? fs.readdirSync(masterResultsDir).length 
+              : 0;
+            console.log(`📊 Total files in master-allure-results: ${fileCount}`);
 
       - name: Load test report history
         uses: actions/checkout@v4
@@ -252,12 +429,14 @@ jobs:
           path: gh-pages
 
       - name: Setup Allure
+        if: always()
         run: |
           wget -qO- https://github.com/allure-framework/allure2/releases/download/2.34.1/allure-2.34.1.tgz | tar -xz
           sudo mv allure-2.34.1 /opt/allure
           sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure
 
-      - name: Build Combined Allure Report
+      - name: Generate Consolidated Allure Report
+        if: always()
         run: |
           # Create allure-history directory if it doesn't exist
           mkdir -p allure-history
@@ -267,11 +446,13 @@ jobs:
             cp -r gh-pages/allure-history/* allure-history/ || true
           fi
           
-          # Generate new Allure report
-          if [ -d "combined-allure-results" ] && [ -n "$(ls -A combined-allure-results 2>/dev/null)" ]; then
-            allure generate combined-allure-results -o allure-report --clean
+          # Generate new Allure report from master-allure-results
+          if [ -d "master-allure-results" ] && [ -n "$(ls -A master-allure-results 2>/dev/null)" ]; then
+            echo "Generating consolidated Allure report..."
+            allure generate master-allure-results -o allure-report --clean
+            echo "✅ Consolidated Allure report generated successfully"
           else
-            echo "No allure results found, creating empty report"
+            echo "⚠️ No allure results found, creating empty report"
             mkdir -p allure-report
             echo '<html><body><h1>No test results available</h1></body></html>' > allure-report/index.html
           fi
@@ -287,18 +468,46 @@ jobs:
 
       - name: Publish test report
         uses: peaceiris/actions-gh-pages@v4
-        if: always()
+        if: ${{ always() && github.event.inputs.publish-slack == 'true' }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: allure-history
 
+      - name: Upload Consolidated Allure Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: master-allure-results
+          path: master-allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Consolidated Allure Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: consolidated-allure-report
+          path: allure-report/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Generate Test Summary
         if: always()
         run: |
+          BRANCH="${{ steps.trigger-and-wait.outputs.target-branch }}"
+          if [ -z "$BRANCH" ]; then
+            BRANCH="${{ github.ref_name }}"
+          fi
+          if [ -z "$BRANCH" ]; then
+            BRANCH="main"
+          fi
+          
           echo "## 🧪 Regression Test Execution Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "This regression run includes results from all three test frameworks:" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`$BRANCH\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This regression run includes consolidated results from all three test frameworks:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Framework | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
@@ -307,41 +516,24 @@ jobs:
           echo "| Puppeteer | ✅ Included |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
-          echo "📊 [View Combined Allure Report](https://${{ github.repository_owner }}.github.io/$REPO_NAME/allure-history/)" >> $GITHUB_STEP_SUMMARY
-
-  notify:
-    name: Slack Notification
-    runs-on: ubuntu-latest
-    needs: [trigger-workflows, publish-report]
-    if: always()
-    
-    steps:
-      - name: Prepare Slack Data
-        id: slack-data
-        run: |
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-          echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
-          echo "report_url=https://${{ github.repository_owner }}.github.io/$REPO_NAME/allure-history/" >> $GITHUB_OUTPUT
+          echo "📊 [View Consolidated Allure Report](https://${{ github.repository_owner }}.github.io/$REPO_NAME/allure-history/)" >> $GITHUB_STEP_SUMMARY
 
       - name: Notify on Slack
         uses: slackapi/slack-github-action@v1.26
-        if: always()
+        if: ${{ always() && github.event.inputs.publish-slack == 'true' }}
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
             {
-              "text": "${{ needs.publish-report.result == 'success' && '✅ *Regression Tests Completed*' || '❌ *Regression Tests Failed*' }}",
+              "text": "${{ job.status == 'success' && '✅ *Regression Tests Completed*' || '❌ *Regression Tests Failed*' }}",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "${{ needs.publish-report.result == 'success' && '✅ *Regression Tests Completed*' || '❌ *Regression Tests Failed*' }}\n• *Branch:* `${{ github.ref_name }}`\n• *Status:* `${{ needs.publish-report.result }}`\n• *Commit:* <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ steps.slack-data.outputs.short_sha }}>\n📊 <${{ steps.slack-data.outputs.report_url }}|View Combined Allure Report>"
+                    "text": "${{ job.status == 'success' && '✅ *Regression Tests Completed*' || '❌ *Regression Tests Failed*' }}\n• *Branch:* `${{ steps.trigger-and-wait.outputs.target-branch }}`\n• *Status:* `${{ job.status }}`\n• *Commit:* <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>\n📊 <https://${{ github.repository_owner }}.github.io/$(echo ${{ github.repository }} | cut -d'/' -f2)/allure-history/|View Consolidated Allure Report>"
                   }
                 }
               ]
             }
         continue-on-error: true
-
