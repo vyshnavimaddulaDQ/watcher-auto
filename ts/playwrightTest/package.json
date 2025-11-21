@@ -16,7 +16,7 @@
    
   },
   "devDependencies": {
-    "@axe-core/watcher": "^3.23.0-next.86c61d3a",
+    "@axe-core/watcher": "^4.0.0-rc.0f7eb327",
     "@playwright/test": "latest",
     "@types/node": "^20.0.0",
     "allure-commandline": "^2.34.1",

@@ -13,7 +13,7 @@
     "test-all": "(npm run autoAnalyzeMode || true) && (npm run manualMode || true) && (npm run axeConfigurations || true) && (npm run excludeURLs || true) && (npm run configureOverrides || true) && (npm run wrapMethods || true) && (npm run edgeCases || true)"
   },
   "devDependencies": {
-    "@axe-core/watcher": "^3.22.0-next.fc61317d",
+    "@axe-core/watcher": "4.0.0-rc.0f7eb327",
     "@types/mocha": "^10.0.10",
     "allure-commandline": "^2.34.1",
     "allure-mocha": "^3.3.2",

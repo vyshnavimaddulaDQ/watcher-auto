@@ -14,7 +14,7 @@
     "allure:report": "allure generate allure-results --clean -o allure-report && allure open allure-report"
   },
   "devDependencies": {
-    "@axe-core/watcher": "^3.23.0-next.86c61d3a",
+    "@axe-core/watcher": "4.0.0-rc.0f7eb327",
     "@types/selenium-webdriver": "latest",
     "allure-commandline": "^2.34.1",
     "allure-mocha": "^3.3.2",
